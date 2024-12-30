@@ -62,8 +62,14 @@ python app.py
 
 ## APP SHOULD LOOK LIKE
 
+#Upload Page
 <img src="./static/screenshots/home.png" alt="Example Image" width="500">
 
+#Chat Page
+<img src="./static/screenshots/chat.png" alt="Example Image" width="500">
+
+#Stats Page [FYI you need to use MongoDB charts for this and embed]
+<img src="./static/screenshots/stats.png" alt="Example Image" width="500">
 
 
 ## Support for Images and Tables
