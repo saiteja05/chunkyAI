@@ -61,14 +61,13 @@ python app.py
 - Create a collection in MongoDB and add the vector indexes provided in the files.
 
 ## APP SHOULD LOOK LIKE
-
-###Upload Page
+->Upload Page
 <br><img src="./static/screenshots/home.png" alt="Example Image" width="500">
 
-###Chat Page
+->Chat Page
 <br><img src="./static/screenshots/chat.png" alt="Example Image" width="500">
 
-###Stats Page [FYI you need to use MongoDB charts for this and embed]
+->Stats Page [FYI you need to use MongoDB charts for this and embed]
 <br><img src="./static/screenshots/stats.png" alt="Example Image" width="500">
 
 
