@@ -58,7 +58,13 @@ python app.py
 
 ## MongoDB Setup
 
-- Create a collection in MongoDB and add the vector indexes provided by the application.
+- Create a collection in MongoDB and add the vector indexes provided in the files.
+
+## APP SHOULD LOOK LIKE
+
+<img src="./static/screenshots/home.png" alt="Example Image" width="300">
+
+
 
 ## Support for Images and Tables
 
