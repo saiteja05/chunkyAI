@@ -62,7 +62,7 @@ python app.py
 
 ## APP SHOULD LOOK LIKE
 
-<img src="./static/screenshots/home.png" alt="Example Image" width="300">
+<img src="./static/screenshots/home.png" alt="Example Image" width="500">
 
 
 
