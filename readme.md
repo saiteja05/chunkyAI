@@ -79,10 +79,8 @@ Currently, the application does not support images and tables. However, you can 
 - [GitHub: Example of Parsing PDF with Complex Tables](https://github.com/rajib76/langchain_examples/blob/main/examples/how_to_parse_pdf_with_complex_tables.py)
 
 ## TODO
-
-- [ ] Check deletion of files post-processing.
-- [ ] Support for URLs.
-- [ ] Pure agentic RAG.
+- [ ] Support for getting data URLs not pdf's alone.
+- [ ] Pure agentic RAG and auto fine tune prompts.
 - [ ] Semantic Cache.
 - [ ] Chat History.
 - [ ] Quantization 
