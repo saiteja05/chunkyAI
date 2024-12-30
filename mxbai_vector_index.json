@@ -1,0 +1,15 @@
+{
+    "fields": [
+      {
+        "numDimensions": 1024,
+        "path": "embedding",
+        "similarity": "cosine",
+        "type": "vector"
+      },
+      {
+        "path": "object_ref",
+        "type": "filter"
+      }
+    ]
+   }
+
