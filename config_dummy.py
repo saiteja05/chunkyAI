@@ -5,10 +5,14 @@ class Config:
     ADOBE_SECRET_KEY ="SOME_SECRET" 
     ADOBE_CLIENT_ID="SOME_SECRET"
     UPLOAD_FOLDER = './uploads'
-    MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # Limit uploads to 16 MB
+    MAX_CONTENT_LENGTH = 100 * 1024 * 1024  # Limit uploads to 100 MB
     MongoDB_URI ="mongo srv"
     DB_NAME="ChunkyAI"
-    APP_NAME = "ChunkyAI"
+    COLLECTION_NAME="context_data"
+    MX_MODEL="mxbai-embed-large"
+    MX_VECTOR="mx_vector"
+    NOM_MODEL="nomic-embed-text"
+    NOM_VECTOR="nom_vector"
     OPEN_AI_KEY="SOME_SECRET"
     FIREWORKS_API_KEY="SOME_SECRET"
     LANGCHAIN_TRACING_V2=True

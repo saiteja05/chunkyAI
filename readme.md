@@ -59,7 +59,12 @@ python app.py
 
 ## MongoDB Setup
 
-- Create a collection in MongoDB and add the vector indexes provided in the files.
+- Create a collection in MongoDB and add the vector indexes provided in the files :
+
+--nomic_vector_index.json
+--mxbai_vector_index.json
+
+you can also use langchain to create these indexes for you.
 
 ## APP SHOULD LOOK LIKE
 ->Upload Page
