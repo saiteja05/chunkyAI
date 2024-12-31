@@ -187,7 +187,7 @@ def indextoMongoDB(data:list):
 @app.route('/get-options', methods=['GET'])
 def get_options():
     # Fetch unique values from MongoDB
-    print("entering get options")
+    # print("entering get options")
     pipeline = [
         {
             "$group": {
@@ -264,7 +264,7 @@ def upload_file():
                     master_data=semanticChunker(pdf,model_choice,chunking_strategy)
                 else:
                     master_data=recursiveChunker(pdf,model_choice,chunking_strategy)
-                print(master_data)
+                # print(master_data)
                 indextoMongoDB(master_data)
                 flash(f'File {filename} chunked and stored, proceed to chat!', 'success')
                 return redirect(url_for('upload_form'))  # Redirect back to the upload form
@@ -280,7 +280,7 @@ def upload_file():
         finally:
             if os.path.exists(file_path):
                 os.remove(file_path)
-                print(f"File '{file_path}' has been deleted successfully.")
+                # print(f"File '{file_path}' has been deleted successfully.")
 
         
     
@@ -358,10 +358,8 @@ def ask_ollama():
         except Exception as e:
             return jsonify({"error": str(e)}), 500
         
-       
-
-    
-
+        finally:
+            client.close()
     return jsonify({"error": "No message provided"}), 400
 
 
@@ -381,7 +379,7 @@ def ask_gpt():
                         {"role": "user", "content": query_text},
                     ]
                 )
-                print(response)
+                # print(response)
                 return jsonify({"response":response.choices[0].message.content})
             
             
@@ -427,6 +425,10 @@ def ask_gpt():
 
         except Exception as e:
             return jsonify({"error": str(e)}), 500
+        
+        finally:
+            client.close()
+
     return jsonify({"error": "No message provided"}), 400
 
 

@@ -309,7 +309,7 @@
 
                if (data) {
                    // Display bot response
-                   console.log(data)
+                   //console.log(data)
                    chatContainer.innerHTML += `<div style="color:darkgreen;"><strong style="color:teal ;">AI:</strong><i> ${data.response}</i></div>`;
 
                } else {
@@ -388,7 +388,7 @@
         fetch('/get-options')
             .then(response => response.json())
             .then(options => {
-                console.log('Fetched options:', options);
+                //console.log('Fetched options:', options);
     
                 // Transform the options array into the desired format
                 const transformedOptions = options.map(option => {
