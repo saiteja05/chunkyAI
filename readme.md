@@ -68,8 +68,8 @@ you can also use langchain to create these indexes for you.
 
 ## APP SHOULD LOOK LIKE
 
-
-[![Watch the Demo here](./static/images/youlogo.png)](https://www.youtube.com/watch?v=1xYrQcAfvVg)
+Demo Video:
+[![Watch the Demo here](https://1000logos.net/wp-content/uploads/2017/05/youtube-icon.png)](https://www.youtube.com/watch?v=1xYrQcAfvVg)
 
 ->Upload Page
 <br><img src="./static/screenshots/home.png" alt="Example Image" width="500">
@@ -77,7 +77,7 @@ you can also use langchain to create these indexes for you.
 ->Chat Page
 <br><img src="./static/screenshots/chat.png" alt="Example Image" width="500">
 
-->Stats Page [FYI you need to use MongoDB charts for this and embed]
+->Stats Page [FYI you need to use MongoDB charts for below data]
 <br><img src="./static/screenshots/stats.png" alt="Example Image" width="500">
 
 
