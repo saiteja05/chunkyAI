@@ -68,7 +68,6 @@ you can also use langchain to create these indexes for you.
 
 ## APP SHOULD LOOK LIKE
 
-Demo Video:
 [![Watch the Demo here](https://1000logos.net/wp-content/uploads/2017/05/youtube-icon.png)](https://www.youtube.com/watch?v=1xYrQcAfvVg)
 
 ->Upload Page
