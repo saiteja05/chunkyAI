@@ -68,7 +68,7 @@ you can also use langchain to create these indexes for you.
 
 ## Architecture Diagram
 
-<br><img src="./static/images/architecture.jpeg" alt="Example Image" width="800">
+<br><img src="./static/images/architecture.jpeg" alt="Example Image" width="1000">
 
 ## APP SHOULD LOOK LIKE
 
