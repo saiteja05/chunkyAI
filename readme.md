@@ -67,6 +67,9 @@ python app.py
 you can also use langchain to create these indexes for you.
 
 ## APP SHOULD LOOK LIKE
+
+![Demo Video](./static//demo.mov)
+
 ->Upload Page
 <br><img src="./static/screenshots/home.png" alt="Example Image" width="500">
 
