@@ -66,6 +66,10 @@ python app.py
 
 you can also use langchain to create these indexes for you.
 
+## Architecture Diagram
+
+<br><img src="./static/images/architecture.jpeg" alt="Example Image" width="500">
+
 ## APP SHOULD LOOK LIKE
 
 [![Watch the Demo here](https://1000logos.net/wp-content/uploads/2017/05/youtube-icon.png)](https://www.youtube.com/watch?v=1xYrQcAfvVg)
@@ -88,7 +92,6 @@ Currently, the application does not have capability to vectorize images and tabl
 - [GitHub: Example of Parsing PDF with Complex Tables](https://github.com/rajib76/langchain_examples/blob/main/examples/how_to_parse_pdf_with_complex_tables.py)
 
 ## TODO
-- [ ] Architecture Diagram. 
 - [ ] Support for getting data URLs not pdf's alone.
 - [ ] Pure agentic RAG and auto fine tune prompts.
 - [ ] Semantic Cache.
