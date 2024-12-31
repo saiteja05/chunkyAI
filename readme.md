@@ -69,7 +69,7 @@ you can also use langchain to create these indexes for you.
 ## APP SHOULD LOOK LIKE
 
 
-[![Watch the Demo here](./static/images/logo1.png)](https://www.youtube.com/watch?v=1xYrQcAfvVg)
+[![Watch the Demo here](./static/images/youlogo.png)](https://www.youtube.com/watch?v=1xYrQcAfvVg)
 
 ->Upload Page
 <br><img src="./static/screenshots/home.png" alt="Example Image" width="500">
