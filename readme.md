@@ -82,7 +82,7 @@ you can also use langchain to create these indexes for you.
 
 ## Support for Images and Tables
 
-Currently, the application does not support images and tables. However, you can refer to the following resources to implement support for them:
+Currently, the application does not have capability to vectorize images and tables inside the pdf documents. However, you can refer to the following resources to implement support for them:
 
 - [YouTube Video: PDF Parsing with Complex Tables](https://www.youtube.com/watch?v=FZFB92UnXQ4)
 - [GitHub: Example of Parsing PDF with Complex Tables](https://github.com/rajib76/langchain_examples/blob/main/examples/how_to_parse_pdf_with_complex_tables.py)
