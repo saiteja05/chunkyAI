@@ -6,7 +6,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chunky-Your AI Partner</title>
+    <title>Chunky-Gen-AI Playground</title>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.1.3/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
@@ -147,7 +147,7 @@
 <body>
 
     <div class="container">
-        <!-- <h2>Chunky - Text AI Buddy</h2> -->
+        <!-- <h2>Chunky - GenAI Playground</h2> -->
         <img src="../static/images/logo1.png" alt="ChunkyAI" id="logo">
         <!-- Nav Tabs -->
         <ul class="nav nav-tabs" id="myTab" role="tablist">
@@ -289,7 +289,9 @@
            userInput.disabled=true;
            if (userMessage.trim() !== "") {
                // Display user message
-               chatContainer.innerHTML += `<div><strong>You:</strong> ${userMessage}</div>`;
+               chatContainer.innerHTML += `<div style="color: purple;">
+                        <strong style="color: navy;"">You:</strong><i>${userMessage}</i>
+                        </div>`;
 
                const selectedModel = modelSelect.value;
                const dropdown = document.getElementById('mongoDropdown');
@@ -308,19 +310,19 @@
                if (data) {
                    // Display bot response
                    console.log(data)
-                   chatContainer.innerHTML += `<div><strong>Bot:</strong> ${data.response}</div>`;
+                   chatContainer.innerHTML += `<div style="color:darkgreen;"><strong style="color:teal ;">AI:</strong><i> ${data.response}</i></div>`;
 
                } else {
-                   chatContainer.innerHTML += `<div><strong>Error:</strong> Something went wrong.</div>`;
+                   chatContainer.innerHTML += `<div style="color: red;"<strong>Error:</strong><i>Something went wrong.</i></div>`;
                }
                
                let prompt=data.prompt;
                if(selectedOption == 'dummy'){
-                currentPromptList.innerHTML=`<div><strong>Prompt:</strong> ${userMessage}</div>`;
+                currentPromptList.innerHTML=`<div style="color:navy;"><strong style="color:orange;">Prompt:</strong><i>${userMessage}</i></div>`;
                 }
                 else
                 {
-                    currentPromptList.innerHTML=`<div><strong>Prompt:</strong> ${prompt}</div>`;
+                    currentPromptList.innerHTML=`<div style="color:navy;">><i><strong style="color:orange;">Prompt:</strong><i>${prompt}</i></div>`;
                 }
                
 
