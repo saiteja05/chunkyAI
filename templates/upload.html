@@ -312,7 +312,7 @@
                if (data) {
                    // Display bot response
                    //console.log(data)
-                   chatContainer.innerHTML += `<div style="color:darkgreen;"><strong style="color:teal ;">AI:</strong><i> ${data.response}</i></div>`;
+                   chatContainer.innerHTML += `<div style="color:darkgreen;"><strong style="color:teal ;">AI:</strong><i> ${data.response.replace(/\n/g, "<br>").replace(/\*\*(.*?)\*\*/g, "<b>$1</b>")}</i></div>`;
 
                } else {
                    chatContainer.innerHTML += `<div style="color: red;"<strong>Error:</strong><i>Something went wrong.</i></div>`;
@@ -324,7 +324,7 @@
                 }
                 else
                 {
-                    currentPromptList.innerHTML=`<div style="color:navy;">><i><strong style="color:orange;">Prompt:</strong><i>${prompt}</i></div>`;
+                    currentPromptList.innerHTML=`<div style="color:navy;">><i><strong style="color:orange;">Prompt:</strong><i>${prompt.replace(/\n/g, "<br>").replace(/\*\*(.*?)\*\*/g, "<b>$1</b>")}</i></div>`;
                 }
                
 
@@ -338,6 +338,7 @@
                sendMessageBtn.textContent = 'Send';
            }
        });
+
 
        // Function to call Ollama API
        async function callOllama(message,selectedOption) {
@@ -353,7 +354,10 @@
                 })
                });
 
-               const data = await response.json();
+               //response.rules.replace(/\n/g, "<br>").replace(/\*\*(.*?)\*\*/g, "<b>$1</b>")
+
+               const data = await response.json()
+               //console.log(data);
                return data|| "No response from Ollama";
            } catch (error) {
                console.error('Error calling Ollama:', error);
@@ -376,6 +380,7 @@
                });
 
                const data = await response.json();
+               
                return data|| "No response from GPT-3.5";
            } catch (error) {
                console.error('Error calling GPT-3.5:', error);

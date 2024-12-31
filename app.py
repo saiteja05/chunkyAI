@@ -39,6 +39,8 @@ Answer the question based only on the following context:
 ---
 
 Answer the question based on the above context: {question}
+
+do not add 'Based on the provided context' or 'According to the context' in the beginning og the response
 """
 
 
@@ -170,8 +172,8 @@ def generateEmbeddings(Chunks,embedding_model:str,chunking_strategy:str):
         raise e
 
 def indextoMongoDB(data:list):
+    client=MongoClient(app.config['MONGODB_URI'],server_api=ServerApi('1'))
     try:
-        client=MongoClient(app.config['MONGODB_URI'],server_api=ServerApi('1'))
         client.admin.command('ping')
         db = client[app.config['DB_NAME']]
         collection = db[app.config['COLLECTION_NAME']]
@@ -207,8 +209,9 @@ def get_options():
             }
         }
     ]
+    client=MongoClient(app.config['MONGODB_URI'],server_api=ServerApi('1'))
     try:
-        client=MongoClient(app.config['MONGODB_URI'],server_api=ServerApi('1'))
+       
         client.admin.command('ping')
         db = client[app.config['DB_NAME']]
         collection = db[app.config['COLLECTION_NAME']]
@@ -308,7 +311,8 @@ def ask_ollama():
     query_text = request.json.get('message')
     prefilter=request.json.get('selectedOption')
     llm=app.config['OLLAMA_MODEL']
-   
+    client = MongoClient(app.config['MONGODB_URI'], server_api=ServerApi('1'))
+    
     if query_text:
         try:
             if(prefilter=="dummy"):
@@ -330,7 +334,6 @@ def ask_ollama():
                 # print(embeddingModel+" is the embedding model and vector index is "+vector_index) 
                 
                 embedding_model = OllamaEmbeddings(model=embeddingModel)
-                client = MongoClient(app.config['MONGODB_URI'], server_api=ServerApi('1'))
                 # print("mongo clent connection successful")
                 mongo_collection=client[DB_NAME][COLLECTION_NAME]
                 # print("mongo get collectiopn succss")
@@ -347,7 +350,7 @@ def ask_ollama():
                 prompt = prompt_template.format(context=context_text, question=query_text)
                 model = OllamaLLM(model=llm)  # Use OllamaLLM instead of Ollama
                 response=model.invoke(prompt)
-                
+                print(response)
 
                 return jsonify({"response":response,"prompt":prompt})
 
@@ -367,6 +370,7 @@ def ask_ollama():
 def ask_gpt():
     query_text = request.json.get('message')
     prefilter=request.json.get('selectedOption')
+    client = MongoClient(app.config['MONGODB_URI'], server_api=ServerApi('1'))
     # Ensure user_input is not empty
     if query_text:
         try:
@@ -379,6 +383,7 @@ def ask_gpt():
                         {"role": "user", "content": query_text},
                     ]
                 )
+               
                 # print(response)
                 return jsonify({"response":response.choices[0].message.content})
             
@@ -395,7 +400,6 @@ def ask_gpt():
                 # print(embeddingModel+" is the embedding model and vector index is "+vector_index) 
                 
                 embedding_model = OllamaEmbeddings(model=embeddingModel)
-                client = MongoClient(app.config['MONGODB_URI'], server_api=ServerApi('1'))
                 mongo_collection=client[DB_NAME][COLLECTION_NAME]
                 vector_store = MongoDBAtlasVectorSearch(
                     collection=mongo_collection,
@@ -418,7 +422,7 @@ def ask_gpt():
                          stop=None,
                         temperature=0.7
                         )
-           
+                # print(jsonify({"response": response.choices[0].message.content,"prompt":prompt}))
                 return jsonify({"response": response.choices[0].message.content,"prompt":prompt})
             
             
