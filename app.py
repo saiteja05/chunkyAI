@@ -312,7 +312,7 @@ def ask_ollama():
     prefilter=request.json.get('selectedOption')
     llm=app.config['OLLAMA_MODEL']
     client = MongoClient(app.config['MONGODB_URI'], server_api=ServerApi('1'))
-    
+    print(f"queryt text is : {query_text}")
     if query_text:
         try:
             if(prefilter=="dummy"):
@@ -371,6 +371,7 @@ def ask_gpt():
     query_text = request.json.get('message')
     prefilter=request.json.get('selectedOption')
     client = MongoClient(app.config['MONGODB_URI'], server_api=ServerApi('1'))
+    print(f"queryt text is : {query_text}")
     # Ensure user_input is not empty
     if query_text:
         try:
