@@ -333,20 +333,20 @@
                // Clear the input field
                userInput.value = "";
                chatContainer.scrollTop = chatContainer.scrollHeight;
-               sendMessageBtn.disabled = false;
-               userInput.disabled=false;
-               sendMessageBtn.textContent = 'Send';
+              
            }
            else
            {
             
           
-           chatContainer.scrollTop = chatContainer.scrollHeight;
+           
            chatContainer.innerHTML += `<div style="color: orange;"<strong>Alert:</strong><i>Need to enter query to proceed</i></div>`;
+           chatContainer.scrollTop = chatContainer.scrollHeight;
+           }
+
            sendMessageBtn.disabled = false;
            userInput.disabled=false;
-
-           }
+           sendMessageBtn.textContent = 'Send';
        });
 
 
