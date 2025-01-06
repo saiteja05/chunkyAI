@@ -139,10 +139,15 @@
             background: #fff;
             padding: 8px;
             text-align: center;
-            line-height: 24px;
+            line-height: 50px;
             box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
         }
-
+        hr {
+            border: none; /* Removes default border */
+            height: 2px; /* Sets thickness */
+            background-color: rgb(16, 202, 223); /* Sets color */
+            margin: 20px 0; /* Adds spacing */
+        }
     
     </style>
 </head>
@@ -242,8 +247,13 @@
                             <option value="ollama">llama3</option>
                             <option value="gpt-3.5">GPT-3.5-Turbo</option>
                         </select>
+                        <br>
+                        <label>
+                            <input type="checkbox" id="agenticSelector" name="agenticCheckbox" value="agentic">
+                            Agentic Rag
+                        </label>
                     </div>
-                    
+                    <hr style="background-color: rgb(49, 5, 247);">
                     </div>
             
                 <div class="col-md-4" class="tab-pane fade"  role="tabpanel" aria-labelledby="chat-tab" >  
@@ -298,24 +308,25 @@
                const selectedModel = modelSelect.value;
                const dropdown = document.getElementById('mongoDropdown');
                const selectedOption = dropdown.value;
-               
+               const agenticCheckbox = document.getElementById('agenticSelector');
+         
                const currentPromptList = document.getElementById('prompt-container');
                currentPromptList.innerHTML = '';
                // Determine which endpoint to call based on model selection
                let data;
                if (selectedModel === "ollama") {
-                   data = await callOllama(userMessage,selectedOption);
+                   data = await callOllama(userMessage,selectedOption,agenticCheckbox.checked);
                } else {
-                   data = await callGPT(userMessage,selectedOption);
+                   data = await callGPT(userMessage,selectedOption, agenticCheckbox.checked);
                }
 
                if (data) {
                    // Display bot response
                    //console.log(data)
-                   chatContainer.innerHTML += `<div style="color:darkgreen;"><strong style="color:teal ;">AI:</strong><i> ${data.response.replace(/\n/g, "<br>").replace(/\*\*(.*?)\*\*/g, "<b>$1</b>")}</i></div>`;
+                   chatContainer.innerHTML += `<div style="color:darkgreen;"><strong style="color:teal ;">AI:</strong><i> ${data.response.replace(/\n/g, "<br>").replace(/\*\*(.*?)\*\*/g, "<b>$1</b>")}</i></div>`+"<hr>";
 
                } else {
-                   chatContainer.innerHTML += `<div style="color: red;"<strong>Error:</strong><i>Something went wrong.</i></div>`;
+                   chatContainer.innerHTML += `<div style="color: red;"<strong>Error:</strong><i>Something went wrong.</i></div>`+"<hr>";
                }
                
                let prompt=data.prompt;
@@ -340,7 +351,7 @@
             
           
            
-           chatContainer.innerHTML += `<div style="color: orange;"<strong>Alert:</strong><i>Need to enter query to proceed</i></div>`;
+           chatContainer.innerHTML += `<div style="color: orange;"<strong>Alert:</strong><i>Need to enter query to proceed</i></div>`+"<hr>";
            chatContainer.scrollTop = chatContainer.scrollHeight;
            }
 
@@ -351,7 +362,7 @@
 
 
        // Function to call Ollama API
-       async function callOllama(message,selectedOption) {
+       async function callOllama(message,selectedOption,isAgentic) {
            try {
                const response = await fetch('/ask/ollama', {
                    method: 'POST',
@@ -360,7 +371,8 @@
                    },
                    body: JSON.stringify({
                     message: message,
-                    selectedOption: selectedOption  // Send the selected option along with the message
+                    selectedOption: selectedOption,
+                    isAgentic: isAgentic // Send the selected option along with the message
                 })
                });
 
@@ -376,7 +388,7 @@
        }
 
        // Function to call GPT-3.5 API
-       async function callGPT(message,selectedOption) {
+       async function callGPT(message,selectedOption,isAgentic) {
            try {
                const response = await fetch('/ask/gpt-3.5', {
                    method: 'POST',
@@ -385,7 +397,8 @@
                    },
                    body: JSON.stringify({
                     message: message,
-                    selectedOption: selectedOption  // Send the selected option along with the message
+                    selectedOption: selectedOption,
+                    isAgentic: isAgentic  // Send the selected option along with the message
                 })
                });
 

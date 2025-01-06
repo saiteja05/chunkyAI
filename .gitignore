@@ -14,7 +14,9 @@ uploads/
 
 # orthercodefiles
 filetester.py
+tester.py
 ./templates/upload_old.html
 .venv
 .vscode
 chunkyAI.mov
+examples_of_code/
