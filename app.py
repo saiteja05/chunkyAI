@@ -88,7 +88,7 @@ def allowed_file(filename):
 
 @app.route('/')
 def upload_form():
-    return render_template('upload2.html')
+    return render_template('index.html')
 
 
 

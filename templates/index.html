@@ -22,7 +22,7 @@
 
         body {
             font-family: 'Poppins', sans-serif;
-            background-color: var(--bg-dark);
+            background: url('../static/images/backgroundphoto.jpg') no-repeat center center fixed;
             color: var(--text-light);
         }
 
@@ -81,7 +81,6 @@
             background: var(--accent-green);
             color: white;
         }
-
         .form-control, .form-select {
             background-color: var(--bg-dark);
             border: 1px solid var(--accent-green);
@@ -217,21 +216,62 @@
             color: #888 !important;
         }
 
-        /* Chat message colors */
-        .user-message {
-            color: #90EE90;
-        }
-
-        .ai-message {
-            color: var(--accent-green);
-        }
-
+       
         /* MongoDB Chart iframe */
         iframe {
             border: 1px solid var(--accent-green) !important;
             border-radius: 8px !important;
             background: var(--bg-dark) !important;
         }
+
+
+        .chat-container {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            max-width: 800px;
+            margin: 0 auto;
+          }
+        
+          .user-message, .ai-message {
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 8px;
+            max-width: 70%; /* Messages don't stretch too wide */
+          }
+        
+          .user-message {
+            align-self: flex-end; /* Align user messages to the right */
+            background-color: #3c3d3c; /* Light green for user messages */
+            color: rgb(232, 225, 225);
+          }
+        
+          .ai-message {
+            align-self: flex-start; /* Align AI messages to the left */
+            background-color: #3c3d3c; /* Light grey for AI messages */
+            color: rgb(233, 225, 225);
+          }
+        
+          /* Optional: Add a wrapper for the entire chat area */
+          #chatContainer {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            padding: 20px;
+            border: 1px solid #090909;
+            border-radius: 10px;
+            background-color: #1a1a1a; /* Dark background for the chat container */
+            color: rgb(33, 120, 46);
+            height: 400px;
+            overflow-y: auto; /* Scrollable if messages exceed container height */
+          }
+        
+          /* Styling for separator (optional) */
+          hr {
+            border: none;
+            border-top: 1px solid #ccc;
+            margin: 10px 0;
+          }
     </style>
 </head>
 <body>
@@ -321,7 +361,7 @@
                         </select>
                     </div>
 
-                    <div id="chat-container"></div>
+                    <div id="chatContainer" class="chat-container"></div>
                     
                     <div class="input-group mt-3">
                         <input type="text" id="userInput" class="form-control" placeholder="Ask something..." aria-label="User Input" required>
@@ -369,7 +409,7 @@
     <script>
         const sendMessageBtn = document.getElementById('sendMessageBtn');
         const userInput = document.getElementById('userInput');
-        const chatContainer = document.getElementById('chat-container');
+        const chatContainer = document.getElementById('chatContainer');
         const modelSelect = document.getElementById('modelSelect');
         const submitButton = document.getElementById('submitButton');
         const fileinput = document.getElementById("file");
@@ -381,7 +421,7 @@
             
             if (userMessage.trim() !== "") {
                 chatContainer.innerHTML += `<div class="user-message">
-                    <strong style="color: #90EE90">You:</strong><i>${userMessage}</i>
+                    <i>${userMessage}</i>
                     </div>`;
 
                 const selectedModel = modelSelect.value;
@@ -400,19 +440,19 @@
                 }
 
                 if (data) {
-                    chatContainer.innerHTML += `<div class="ai-message"><strong style="color: var(--accent-green)">AI:</strong><i> ${data.response.replace(/\n/g, "<br>").replace(/\*\*(.*?)\*\*/g, "<b>$1</b>")}</i></div>` + "<hr>";
+                    chatContainer.innerHTML += `<div class="ai-message"><strong style="color: var(--accent-green)">AI:</strong> ${data.response.replace(/\n/g, "<br>").replace(/\*\*(.*?)\*\*/g, "<b>$1</b>")}</div>` ;
 
                } else {
-                chatContainer.innerHTML += `<div style="color: red;"<strong>Error:</strong><i>Something went wrong.</i></div>`+"<hr>";
+                chatContainer.innerHTML += `<div  class="ai-message" style="color: red;"<strong>Error:</strong><i>Something went wrong.</i></div>`;
             }
             
             let prompt=data.prompt;
             if(selectedOption == 'dummy'){
-             currentPromptList.innerHTML=`<div style="color:white;"><strong style="color:orange;">Prompt:</strong><i>${userMessage}</i></div>`;
+             currentPromptList.innerHTML=`<div  style="color:white;"><strong style="color:orange;">Prompt:<br></strong><i>${userMessage}</i></div>`;
              }
              else
              {
-                 currentPromptList.innerHTML=`<div style="color:white;">><i><strong style="color:orange;">Prompt:</strong><i>${prompt.replace(/\n/g, "<br>").replace(/\*\*(.*?)\*\*/g, "<b>$1</b>")}</i></div>`;
+                 currentPromptList.innerHTML=`<div   style="color:white;">><i><strong style="color:orange;">Prompt:<br></strong><i>${prompt.replace(/\n/g, "<br>").replace(/\*\*(.*?)\*\*/g, "<b>$1</b>")}</i></div>`;
              }
             
 
@@ -428,7 +468,7 @@
          
        
         
-        chatContainer.innerHTML += `<div style="color: orange;"<strong>Alert:</strong><i>Need to enter query to proceed</i></div>`+"<hr>";
+        chatContainer.innerHTML += `<div style="color: orange;"<strong>Alert:</strong><i>Need to enter query to proceed</i></div>`;
         chatContainer.scrollTop = chatContainer.scrollHeight;
         }
 
