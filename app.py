@@ -5,7 +5,7 @@ from flask import Flask, request, render_template, redirect, url_for, flash
 import ollama
 from werkzeug.utils import secure_filename
 from config import Config
-from openai import ChatCompletion
+# from openai import ChatCompletion
 from openai import OpenAI
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -16,6 +16,9 @@ from tenacity import (
     stop_after_attempt,
     wait_random_exponential,
 ) 
+from langchain.tools import Tool
+from langchain.chains import RetrievalQA
+
 
 #for semantic chunking
 
@@ -29,19 +32,30 @@ from pymongo.server_api import ServerApi
 from langchain_mongodb import MongoDBAtlasVectorSearch
 
 
+from langchain.prompts import PromptTemplate
 
 
 PROMPT_TEMPLATE = """
-Answer the question based only on the following context:
+    Use the following pieces of context to answer the question at the end.
+    If you don't know the answer, just say that you don't know, don't try to make up an     answer.
+    Do not answer the question if there is no given context.
+    Do not answer the question if it is not related to the context.
+    You can suggest few external resources but do not provide the answer directly.
+    Answer the following question based on the context:\n\nContext: {context}\n------------------\nQuestion: {question}
+    """
 
-{context}
-
----
-
-Answer the question based on the above context: {question}
-
-do not add 'Based on the provided context' or 'According to the context' in the beginning og the response
-"""
+# Define the custom prompt
+custom_prompt = PromptTemplate(
+    input_variables=["context", "question"],
+    template="""
+    Use the following pieces of context to answer the question at the end.
+    If you don't know the answer, just say that you don't know, don't try to make up an     answer.
+    Do not answer the question if there is no given context.
+    Do not answer the question if it is not related to the context.
+    You can suggest few external resources but do not provide the answer directly.
+    Answer the following question based on the context:\n\nContext: {context}\n\nQuestion: {question}
+    """
+)
 
 
 # Initialize the Flask application
@@ -74,7 +88,7 @@ def allowed_file(filename):
 
 @app.route('/')
 def upload_form():
-    return render_template('upload.html')
+    return render_template('upload2.html')
 
 
 
@@ -310,17 +324,18 @@ def embedding_create_backoff(**kwargs):
 def ask_ollama():
     query_text = request.json.get('message')
     prefilter=request.json.get('selectedOption')
+    isAgentic=request.json.get('isAgentic')
+    
     llm=app.config['OLLAMA_MODEL']
     client = MongoClient(app.config['MONGODB_URI'], server_api=ServerApi('1'))
-    print(f"queryt text is : {query_text}")
     if query_text:
         try:
             if(prefilter=="dummy"):
                 response = ollama.chat(model=llm, messages=[{'role': 'user', 'content':query_text },]) #role can be  'user', 'assistant', 'system' or 'tool'
                 if response.done:
-                    # print(response.message.content)
+                 
                     return jsonify({"response":response.message.content});
-                else:# Handle unsuccessful response from Ollama
+                else:
                     return jsonify({"error": f"Failed to get response from LLM, status code: {response.status_code}"}), 500
             else:
                 metadata=prefilter.split("/")
@@ -331,28 +346,59 @@ def ask_ollama():
                     embeddingModel="nomic-embed-text"
                     vector_index=app.config['NOM_VECTOR']
                 
-                # print(embeddingModel+" is the embedding model and vector index is "+vector_index) 
-                
+            
+                model = OllamaLLM(model=llm)
                 embedding_model = OllamaEmbeddings(model=embeddingModel)
-                # print("mongo clent connection successful")
+              
                 mongo_collection=client[DB_NAME][COLLECTION_NAME]
-                # print("mongo get collectiopn succss")
+                
                 vector_store = MongoDBAtlasVectorSearch(
                     collection=mongo_collection,
                     embedding=embedding_model,
                     index_name=vector_index,
                     relevance_score_fn="cosine",
                     text_key="page_content")
-                
-                documents=vector_store.similarity_search_with_score(query=query_text, k=5,pre_filter={"object_ref":prefilter})
-                context_text = "\n\n---\n\n".join([doc.page_content for doc, _score in documents])
-                prompt_template = ChatPromptTemplate.from_template(PROMPT_TEMPLATE)
-                prompt = prompt_template.format(context=context_text, question=query_text)
-                model = OllamaLLM(model=llm)  # Use OllamaLLM instead of Ollama
-                response=model.invoke(prompt)
-                print(response)
 
-                return jsonify({"response":response,"prompt":prompt})
+                if isAgentic is True:
+                    retriever =vector_store.as_retriever(
+                         search_kwargs={
+                                 'k': 10,
+                         'pre_filter': { 'object_ref': prefilter} 
+                     }
+                    )
+                    qa_chain = RetrievalQA.from_chain_type(
+                        retriever=retriever,
+                        llm=model,
+                        chain_type_kwargs={"prompt": custom_prompt,"verbose": True},
+                        return_source_documents=True
+                        
+                    )
+                    response = qa_chain.invoke(query_text)
+                    combine_chain = qa_chain.combine_documents_chain
+                    prompt_template = combine_chain.llm_chain.prompt
+
+                   # Fetch the prompt variables
+                    context = "\n\n".join([doc.page_content for doc in response["source_documents"]])
+                   
+
+                    # Construct the generated prompt
+                    generated_prompt = prompt_template.format(context=context, question=query_text)
+                    return jsonify({"response":response['result'],"prompt":generated_prompt})
+               
+
+              
+
+                retrieved_docs = vector_store.similarity_search_with_score(query=query_text, k=10,pre_filter={"object_ref":prefilter})
+                context_text = "\n\n---\n\n".join([doc.page_content for doc, _score in retrieved_docs])
+                prompt_template = ChatPromptTemplate.from_template(PROMPT_TEMPLATE)
+                prompt_text = prompt_template.format(context=context_text, question=query_text) 
+                  
+
+
+                response=model.invoke(prompt_text)
+                
+
+                return jsonify({"response":response,"prompt":prompt_text})
 
         
 
@@ -370,8 +416,10 @@ def ask_ollama():
 def ask_gpt():
     query_text = request.json.get('message')
     prefilter=request.json.get('selectedOption')
+    isAgentic=request.json.get('isAgentic')
+    if isAgentic:
+        print("isAgentic is true")
     client = MongoClient(app.config['MONGODB_URI'], server_api=ServerApi('1'))
-    print(f"queryt text is : {query_text}")
     # Ensure user_input is not empty
     if query_text:
         try:
@@ -421,7 +469,7 @@ def ask_gpt():
                          max_tokens=4096,  # Adjust as needed
                             n=1,
                          stop=None,
-                        temperature=0.7
+                        temperature=0.2
                         )
                 # print(jsonify({"response": response.choices[0].message.content,"prompt":prompt}))
                 return jsonify({"response": response.choices[0].message.content,"prompt":prompt})

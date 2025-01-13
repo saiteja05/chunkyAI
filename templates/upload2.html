@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<footer id="footer">
+    <a href="https://www.youtube.com/watch?v=1xYrQcAfvVg">
+        <img src="https://1000logos.net/wp-content/uploads/2017/05/youtube-icon.png" alt="Demo Video" />
+    </a>
+</footer>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chunky-Gen-AI Playground</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.1.3/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --bg-dark: #1a1a1a;
+            --accent-green: #00916e;
+            --text-light: #ffffff;
+            --secondary-dark: #2d2d2d;
+        }
+
+        body {
+            font-family: 'Poppins', sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-light);
+        }
+
+        #logo {
+            height: 120px;
+            width: auto;
+            margin: 10px;
+            filter: brightness(0.9);
+        }
+
+        #footer {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            margin: 10px;
+            font-family: 'Poppins', sans-serif;
+            font-size: 15px;
+            color: var(--text-light);
+        }
+
+        .container {
+            max-width: 800px;
+            margin-top: 50px;
+            padding: 30px;
+            background: var(--secondary-dark);
+            border-radius: 16px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        
+        /* Optionally style the logo */
+        #logo {
+            max-width: 100%; /* Ensure it resizes properly */
+            max-height: 100%; /* Prevent overflow */
+        }
+
+        h2, h3, h5 {
+            color: var(--accent-green);
+            font-weight: 600;
+        }
+
+        .nav-tabs {
+            border-bottom: 1px solid var(--accent-green);
+        }
+
+        .nav-tabs .nav-link {
+            color: var(--text-light);
+            border: none;
+            padding: 12px 24px;
+            margin-right: 5px;
+            border-radius: 8px 8px 0 0;
+            background: var(--bg-dark);
+        }
+
+        .nav-tabs .nav-link.active {
+            background: var(--accent-green);
+            color: white;
+        }
+
+        .form-control, .form-select {
+            background-color: var(--bg-dark);
+            border: 1px solid var(--accent-green);
+            color: var(--text-light);
+            border-radius: 8px;
+            padding: 12px;
+        }
+        #sendMessageBtn:disabled {
+            background-color: #121212;  /* Dark grey color */
+            color: #ccc;  /* Light grey text color */
+            border: 1px solid #444;  /* Darker border */
+            cursor: not-allowed;  /* Change cursor to indicate it's disabled */
+          }
+
+          #userInput:disabled {
+            background-color: #555;  /* Dark grey color */
+            color: #ccc;  /* Light grey text color */
+            border: 1px solid #444;  /* Darker border */
+            cursor: not-allowed;  /* Change cursor to indicate it's disabled */
+          }
+
+
+        .form-control:focus, .form-select:focus {
+            background-color: var(--bg-dark);
+            border-color: var(--accent-green);
+            color: var(--text-light);
+            box-shadow: 0 0 0 0.25rem rgba(0, 145, 110, 0.25);
+        }
+
+        .btn-primary {
+            background-color: var(--accent-green);
+            border: none;
+            padding: 12px 30px;
+            border-radius: 8px;
+            font-weight: 500;
+            width: 100%;
+        }
+
+        .btn-primary:hover {
+            background-color: #00b386;
+        }
+
+        .alert {
+            background-color: var(--secondary-dark);
+            border: 1px solid var(--accent-green);
+            color: var(--text-light);
+        }
+
+        .alert-warning {
+            background-color: rgba(15, 12, 1, 0.1);
+            border-color: #ffc107;
+            color: #eceae7;
+        }
+
+        .alert-red {
+            background-color: rgba(13, 1, 2, 0.1);
+            color: #f7f2f2;
+            border: 1px solid #e70e0e;
+            border-radius: 8px;
+            padding: 15px;
+        }
+
+        #chat-container, #prompt-container {
+            background-color: var(--bg-dark);
+            border: 1px solid var(--accent-green);
+            border-radius: 8px;
+            padding: 20px;
+            height: 300px;
+            overflow-y: auto;
+        }
+
+        /* Icons section */
+        .icons-container {
+            position: fixed;
+            bottom: 10px;
+            right: 10px;
+            display: flex;
+            flex-direction: row;  /* Change from column to row */
+            gap: 10px;  /* Add space between the icons */
+            justify-content: center;  /* Center the icons horizontally */
+            align-items: center;  /* Vertically align the icons */
+        }
+
+        .icons-container img,
+        .icons-container i {
+            width: 40px;
+            height: 40px;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+
+        .icons-container img {
+            object-fit: contain;
+        }
+
+        .icons-container i {
+            background: #fff;
+            padding: 8px;
+            text-align: center;
+            line-height: 50px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        }
+
+        .footer {
+            text-align: center;
+            padding: 20px;
+            color: var(--text-light);
+        }
+
+        hr {
+            border: none;
+            height: 2px;
+            background-color: var(--accent-green);
+            margin: 20px 0;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--bg-dark);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--accent-green);
+            border-radius: 4px;
+        }
+
+        /* Form placeholder color */
+        ::placeholder {
+            color: #888 !important;
+        }
+
+        /* Chat message colors */
+        .user-message {
+            color: #90EE90;
+        }
+
+        .ai-message {
+            color: var(--accent-green);
+        }
+
+        /* MongoDB Chart iframe */
+        iframe {
+            border: 1px solid var(--accent-green) !important;
+            border-radius: 8px !important;
+            background: var(--bg-dark) !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div style="display: flex; justify-content: center;">
+            <img src="../static/images/logo.png" alt="ChunkyAI" id="logo">
+          </div>
+        
+        <ul class="nav nav-tabs" id="myTab" role="tablist">
+            <li class="nav-item" role="presentation">
+                <a class="nav-link active" id="upload-tab" data-bs-toggle="tab" href="#upload" role="tab" aria-controls="upload" aria-selected="true">Upload PDF</a>
+            </li>
+            <li class="nav-item" role="presentation">
+                <a class="nav-link" id="chat-tab" data-bs-toggle="tab" href="#chatbot" role="tab" aria-controls="chatbot" aria-selected="false">Chatbot</a>
+            </li>
+            <li class="nav-item" role="presentation">
+                <a class="nav-link" id="stats" data-bs-toggle="tab" href="#analytics" role="tab" aria-controls="analytics" aria-selected="false">Stats</a>
+            </li>
+        </ul>
+
+        <div class="tab-content" id="myTabContent">
+            <!-- Upload PDF Tab -->
+            <div class="tab-pane fade show active" id="upload" role="tabpanel" aria-labelledby="upload-tab">
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    <div class="alert alert-{{ messages[0][0] }} alert-dismissible fade show" role="alert">
+                        {{ messages[0][1] }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                {% endif %}
+                {% endwith %}
+
+                <form id="uploadForm" action="/upload" method="POST" enctype="multipart/form-data">
+                    <br>
+                    <label for="file" class="form-label">Choose a PDF file</label>
+                    <input type="file" class="form-control" id="file" name="file" accept=".pdf" required>
+                   
+                    <label for="model" class="form-label mt-3">Select a Embedding Model</label>
+                    <select class="form-control" id="model" name="model" required>
+                        <option value="nomic-embed-text">nomic-embed-text-768</option>
+                        <option value="mxbai-embed-large">mxbai-embed-large-1024</option>
+                    </select>
+
+                   
+                    
+                    <label for="chunking_strategy" class="form-label mt-3">Select a Chunking Strategy</label>
+                    <select class="form-control" id="chunking_strategy" name="chunking_strategy" required>
+                        <option value="semantic">Semantic Chunking (Experimental) </option>
+                        <option value="recursive">Recursive Splitter With Overlap</option>
+                    </select>
+
+                    
+                    <button id="submitButton" type="submit" class="btn btn-primary mt-4">Upload and process PDF</button>
+                </form>
+
+                <div class="alert alert-warning mt-4" role="alert">
+                    <B>Embedding Models</B>
+                    <br>
+                    ===============
+                    <br>
+                    <strong>Summarization Models:</strong> Good for the task of generating a summary of a text.<br>
+                    <strong>Retrieval Models:</strong> Good for finding relevant documents for a query.
+                </div>
+                
+
+                <div class="alert-red mt-4">
+                    <h6>Wait for success message before proceeding for conversation.</h6>
+                </div>
+            </div>
+
+            <!-- Analytics Tab -->
+            <div class="tab-pane fade" id="analytics" role="tabpanel" aria-labelledby="analytics">
+                <iframe style="background: var(--bg-dark);border: none;border-radius: 8px;box-shadow: 0 2px 10px 0 rgba(70, 76, 79, .2);width: 30vw;height: 70vh;" 
+                    src="https://charts.mongodb.com/charts-saiteja-rjhew/embed/dashboards?id=bb052772-8ca6-4875-950b-26c14d9c2aac&theme=dark&autoRefresh=true&maxDataAge=3600&showTitleAndDesc=true&scalingWidth=scale&scalingHeight=scale">
+                </iframe>
+            </div>
+
+            <!-- Chatbot Tab -->
+            <div class="tab-pane fade" id="chatbot" role="tabpanel" aria-labelledby="chat-tab">
+                <div class="chatbox">
+                <br>
+                    
+                    <div class="mb-3">
+                        <label for="mongoDropdown" class="form-label">Select Document/Embedding-model/chunking-strategy</label>
+                        <select class="form-control" id="mongoDropdown">
+                            <option value="dummy" disabled selected>Loading options...</option>
+                        </select>
+                    </div>
+
+                    <div id="chat-container"></div>
+                    
+                    <div class="input-group mt-3">
+                        <input type="text" id="userInput" class="form-control" placeholder="Ask something..." aria-label="User Input" required>
+                        <button class="btn btn-primary" id="sendMessageBtn">Send</button>
+                    </div>
+
+                    <div class="mt-3">
+                        <label for="modelSelect" class="form-label">Select Foundation Model</label>
+                        <select class="form-control" id="modelSelect">
+                            <option value="ollama">llama3</option>
+                            <option value="gpt-3.5">GPT-3.5-Turbo</option>
+                        </select>
+                        <br>
+                        <label>
+                            <input type="checkbox" id="agenticSelector" name="agenticCheckbox" value="agentic">
+                            Agentic Rag
+                        </label>
+                    </div>
+                    <hr>
+                </div>
+                <div class="col-md-4" class="tab-pane fade"  role="tabpanel" aria-labelledby="chat-tab" >  
+                    <div id="prompt-container" class="prompts-view-box" style="height: 300px; width: 740px;overflow-y: auto; padding: 10px; border-radius: 10px;">
+                    <h5 class="text-center mb-2">Prompt</h5>
+                </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="footer">
+        <p>&copy; 2024 Sai Teja Boddapati. All rights reserved.</p>
+    </div>
+
+    <div class="icons-container">
+        <img src="../static/images/mongodb-logo.png" alt="MongoDB" title="MongoDB">
+        <img src="../static/images/langchain-logo.png" alt="LangChain" title="LangChain">
+        <img src="../static/images/openai-logo.png" alt="OpenAI" title="OpenAI">
+        <img src="../static/images/llama_white.png" alt="OLLAMA" title="OLLAMA">
+    </div>
+
+    <!-- Bootstrap JS Bundle -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.1.3/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Your existing JavaScript code -->
+    <script>
+        const sendMessageBtn = document.getElementById('sendMessageBtn');
+        const userInput = document.getElementById('userInput');
+        const chatContainer = document.getElementById('chat-container');
+        const modelSelect = document.getElementById('modelSelect');
+        const submitButton = document.getElementById('submitButton');
+        const fileinput = document.getElementById("file");
+
+        sendMessageBtn.addEventListener('click', async function() {
+            const userMessage = userInput.value;
+            sendMessageBtn.disabled = true;
+            userInput.disabled = true;
+            
+            if (userMessage.trim() !== "") {
+                chatContainer.innerHTML += `<div class="user-message">
+                    <strong style="color: #90EE90">You:</strong><i>${userMessage}</i>
+                    </div>`;
+
+                const selectedModel = modelSelect.value;
+                const dropdown = document.getElementById('mongoDropdown');
+                const selectedOption = dropdown.value;
+                const agenticCheckbox = document.getElementById('agenticSelector');
+         
+                const currentPromptList = document.getElementById('prompt-container');
+                currentPromptList.innerHTML = '';
+
+                let data;
+                if (selectedModel === "ollama") {
+                    data = await callOllama(userMessage, selectedOption, agenticCheckbox.checked);
+                } else {
+                    data = await callGPT(userMessage, selectedOption, agenticCheckbox.checked);
+                }
+
+                if (data) {
+                    chatContainer.innerHTML += `<div class="ai-message"><strong style="color: var(--accent-green)">AI:</strong><i> ${data.response.replace(/\n/g, "<br>").replace(/\*\*(.*?)\*\*/g, "<b>$1</b>")}</i></div>` + "<hr>";
+
+               } else {
+                chatContainer.innerHTML += `<div style="color: red;"<strong>Error:</strong><i>Something went wrong.</i></div>`+"<hr>";
+            }
+            
+            let prompt=data.prompt;
+            if(selectedOption == 'dummy'){
+             currentPromptList.innerHTML=`<div style="color:white;"><strong style="color:orange;">Prompt:</strong><i>${userMessage}</i></div>`;
+             }
+             else
+             {
+                 currentPromptList.innerHTML=`<div style="color:white;">><i><strong style="color:orange;">Prompt:</strong><i>${prompt.replace(/\n/g, "<br>").replace(/\*\*(.*?)\*\*/g, "<b>$1</b>")}</i></div>`;
+             }
+            
+
+           
+
+            // Clear the input field
+            userInput.value = "";
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+           
+        }
+        else
+        {
+         
+       
+        
+        chatContainer.innerHTML += `<div style="color: orange;"<strong>Alert:</strong><i>Need to enter query to proceed</i></div>`+"<hr>";
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        sendMessageBtn.disabled = false;
+        userInput.disabled=false;
+        sendMessageBtn.textContent = 'Send';
+    });
+
+
+    // Function to call Ollama API
+    async function callOllama(message,selectedOption,isAgentic) {
+        try {
+            const response = await fetch('/ask/ollama', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                 message: message,
+                 selectedOption: selectedOption,
+                 isAgentic: isAgentic // Send the selected option along with the message
+             })
+            });
+
+            //response.rules.replace(/\n/g, "<br>").replace(/\*\*(.*?)\*\*/g, "<b>$1</b>")
+
+            const data = await response.json()
+            //console.log(data);
+            return data|| "No response from Ollama";
+        } catch (error) {
+            console.error('Error calling Ollama:', error);
+            return "Error communicating with Ollama";
+        }
+    }
+
+    // Function to call GPT-3.5 API
+    async function callGPT(message,selectedOption,isAgentic) {
+        try {
+            const response = await fetch('/ask/gpt-3.5', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                 message: message,
+                 selectedOption: selectedOption,
+                 isAgentic: isAgentic  // Send the selected option along with the message
+             })
+            });
+
+            const data = await response.json();
+            
+            return data|| "No response from GPT-3.5";
+        } catch (error) {
+            console.error('Error calling GPT-3.5:', error);
+            return "Error communicating with GPT-3.5";
+        }
+    }
+
+
+    // Function to fetch MongoDB options
+    
+    window.onload = function() {
+     fetch('/get-options')
+         .then(response => response.json())
+         .then(options => {
+             //console.log('Fetched options:', options);
+ 
+             // Transform the options array into the desired format
+             const transformedOptions = options.map(option => {
+                 return `${option.file_id}/${option.embedding_model}/${option.chunking_strategy}`;
+             });
+ 
+ 
+             // Populate the dropdown
+             const dropdown = document.getElementById('mongoDropdown');
+             dropdown.innerHTML = '';  // Clear the "Loading options..." option
+
+             const defaultOption = document.createElement('option');
+             defaultOption.value = 'dummy';  // The value for no selection
+             defaultOption.textContent = 'Provide No context';  // Text content for the default option
+             //defaultOption.disabled = true;  // Make it unselectable after being chosen
+             defaultOption.selected = true;  // Set it as the selected option by default
+             dropdown.appendChild(defaultOption);
+ 
+ 
+             // Ensure transformedOptions is an array before calling forEach
+             if (Array.isArray(transformedOptions)) {
+                 transformedOptions.forEach(option => {
+                     const opt = document.createElement('option');
+                     opt.value = option;  // Set the value of the option
+                     opt.textContent = option;  // Set the text content to display in the dropdown
+                     dropdown.appendChild(opt);
+                 });
+             } else {
+                 console.error('Transformed options is not an array:', transformedOptions);
+             }
+         })
+         .catch(error => {
+             console.error('Error fetching dropdown options:', error);
+         });
+ };
+
+
+
+    
+
+</script>
+</body>
+</html>
