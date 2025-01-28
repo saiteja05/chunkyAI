@@ -373,6 +373,7 @@
                         <select class="form-control" id="modelSelect">
                             <option value="ollama">llama3</option>
                             <option value="gpt-3.5">GPT-3.5-Turbo</option>
+                            <option value="gpt-4o">GPT-4o</option>
                         </select>
                         <br>
                         <label>
@@ -435,8 +436,10 @@
                 let data;
                 if (selectedModel === "ollama") {
                     data = await callOllama(userMessage, selectedOption, agenticCheckbox.checked);
-                } else {
+                } else if (selectedModel === "gpt-3.5") {
                     data = await callGPT(userMessage, selectedOption, agenticCheckbox.checked);
+                } else {
+                    data = await callGPT4o(userMessage, selectedOption, agenticCheckbox.checked);
                 }
 
                 if (data) {
@@ -527,6 +530,29 @@
             return "Error communicating with GPT-3.5";
         }
     }
+ // Function to call GPT-4.0 API
+ async function callGPT4o(message,selectedOption,isAgentic) {
+    try {
+        const response = await fetch('/ask/gpt-4.0', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+             message: message,
+             selectedOption: selectedOption,
+             isAgentic: isAgentic  // Send the selected option along with the message
+         })
+        });
+
+        const data = await response.json();
+        
+        return data|| "No response from GPT-4.0";
+    } catch (error) {
+        console.error('Error calling GPT-4.0:', error);
+        return "Error communicating with GPT-4.0";
+    }
+}
 
 
     // Function to fetch MongoDB options

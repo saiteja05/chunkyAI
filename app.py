@@ -33,6 +33,8 @@ from langchain_mongodb import MongoDBAtlasVectorSearch
 
 
 from langchain.prompts import PromptTemplate
+from langchain.embeddings import OpenAIEmbeddings
+from langchain_openai import AzureChatOpenAI
 
 
 PROMPT_TEMPLATE = """
@@ -72,6 +74,12 @@ COLLECTION_NAME=app.config['COLLECTION_NAME']
 #open ai variables
 openai_client = OpenAI(api_key=app.config['OPEN_AI_KEY'])
 os.environ["OPENAI_API_KEY"]=app.config['OPEN_AI_KEY']
+
+
+AZURE_OPENAI_API_KEY = app.config['AZURE_OPENAI_API_KEY']
+AZURE_OPENAI_ENDPOINT =app.config['AZURE_OPENAI_ENDPOINT']
+AZURE_DEPLOYMENT_NAME = app.config['AZURE_OPENAI_DEPLOYMENT']
+AZURE_OPENAI_API_VERSION=app.config['AZURE_OPENAI_API_VERSION']
 
 
 # Set configuration variables
@@ -413,28 +421,34 @@ def ask_ollama():
 
 
 @app.route('/ask/gpt-3.5', methods=['POST'])
-def ask_gpt():
+def ask_gpt35():
     query_text = request.json.get('message')
     prefilter=request.json.get('selectedOption')
     isAgentic=request.json.get('isAgentic')
     if isAgentic:
         print("isAgentic is true")
+    llm = AzureChatOpenAI(
+    azure_endpoint=app.config['AZURE_GPT35_ENDPOINT'],
+    openai_api_key=app.config['AZURE_GPT35_KEY'],
+    openai_api_version=app.config['AZURE_GPT35_API_VERSION'],   
+    temperature=0.7,
+    max_tokens=4096
+    )
+
     client = MongoClient(app.config['MONGODB_URI'], server_api=ServerApi('1'))
     # Ensure user_input is not empty
     if query_text:
         try:
             if(prefilter=="dummy"):
             # Call OpenAI's new chat-based API (using the correct model and chat completions)
-                response = chat_completion_backoff(
-                    model="gpt-3.5-turbo",
-                    messages=[
+                response = llm.invoke([
                         {"role": "system", "content": "you are a helpful chatbot"},
                         {"role": "user", "content": query_text},
                     ]
                 )
                
                 # print(response)
-                return jsonify({"response":response.choices[0].message.content})
+                return jsonify({"response":response.content})
             
             
             else:
@@ -460,19 +474,12 @@ def ask_gpt():
                 context_text = "\n\n---\n\n".join([doc.page_content for doc, _score in documents])
                 prompt_template = ChatPromptTemplate.from_template(PROMPT_TEMPLATE)
                 prompt = prompt_template.format(context=context_text, question=query_text)
-                response = openai_client.chat.completions.create(
-                        model="gpt-3.5-turbo",  # Use the correct model name
-                        messages=[
-                                {"role": "system", "content": "You are a helpful assistant that answers questions based on provided context."},
-                                {"role": "user", "content": prompt}
-                                ],
-                         max_tokens=4096,  # Adjust as needed
-                            n=1,
-                         stop=None,
-                        temperature=0.2
-                        )
+                response = llm.invoke(input=[
+                    {"role": "system", "content": "You are a helpful assistant that answers questions based on provided context."},
+                    {"role": "user", "content": prompt}
+                    ])
                 # print(jsonify({"response": response.choices[0].message.content,"prompt":prompt}))
-                return jsonify({"response": response.choices[0].message.content,"prompt":prompt})
+                return jsonify({"response": response.content,"prompt":prompt})
             
             
 
@@ -486,6 +493,80 @@ def ask_gpt():
 
 
 
+@app.route('/ask/gpt-4.0', methods=['POST'])
+def ask_gpt4o():
+    query_text = request.json.get('message')
+    prefilter=request.json.get('selectedOption')
+    isAgentic=request.json.get('isAgentic')
+    if isAgentic:
+        print("isAgentic is true")
+    client = MongoClient(app.config['MONGODB_URI'], server_api=ServerApi('1'))
+    llm = AzureChatOpenAI(
+    azure_endpoint=AZURE_OPENAI_ENDPOINT,
+    openai_api_key=AZURE_OPENAI_API_KEY,
+    openai_api_version=AZURE_OPENAI_API_VERSION,
+    temperature=0.7,
+    max_tokens=4096
+    )
+
+    # Ensure user_input is not empty
+    if query_text:
+        try:
+            if(prefilter=="dummy"):
+            # Call OpenAI's new chat-based API (using the correct model and chat completions)
+
+                response = llm.invoke([
+                    {"role": "system", "content": "You are a helpful assistant that answers questions based on provided context."},
+                    {"role": "user", "content":query_text}
+                ])
+
+                print(response)
+               
+                # print(response)
+                return jsonify({"response":response.content})
+            
+            
+            else:
+                print(prefilter)
+                metadata=prefilter.split("/")
+                if(metadata[1]=='mxbai-embed-large'):
+                    embeddingModel=metadata[1]
+                    vector_index=app.config['MX_VECTOR']
+                else:
+                    embeddingModel="nomic-embed-text"
+                    vector_index=app.config['NOM_VECTOR']
+                
+                # print(embeddingModel+" is the embedding model and vector index is "+vector_index) 
+                
+                embedding_model = OllamaEmbeddings(model=embeddingModel)
+                mongo_collection=client[DB_NAME][COLLECTION_NAME]
+                vector_store = MongoDBAtlasVectorSearch(
+                    collection=mongo_collection,
+                    embedding=embedding_model,
+                    index_name=vector_index,
+                    relevance_score_fn="cosine",
+                    text_key="page_content")
+                documents=vector_store.similarity_search_with_score(query=query_text, k=5,pre_filter={"object_ref":prefilter})
+                context_text = "\n\n---\n\n".join([doc.page_content for doc, _score in documents])
+                prompt_template = ChatPromptTemplate.from_template(PROMPT_TEMPLATE)
+                prompt = prompt_template.format(context=context_text, question=query_text)
+                response = llm.invoke(input=[
+                    {"role": "system", "content": "You are a helpful assistant that answers questions based on provided context."},
+                    {"role": "user", "content": prompt}
+                    ])
+                # print(response)
+                # print(jsonify({"response": response.choices[0].message.content,"prompt":prompt}))
+                return jsonify({"response": response.content,"prompt":prompt})
+            
+            
+
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+        
+        finally:
+            client.close()
+
+    return jsonify({"error": "No message provided"}), 400
 
 
 
