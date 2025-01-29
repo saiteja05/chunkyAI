@@ -56,14 +56,7 @@ PROMPT_TEMPLATE = """
 # Define the custom prompt
 custom_prompt = PromptTemplate(
     input_variables=["context", "question"],
-    template="""
-    Use the following pieces of context to answer the question at the end.
-    If you don't know the answer, just say that you don't know, don't try to make up an     answer.
-    Do not answer the question if there is no given context.
-    Do not answer the question if it is not related to the context.
-    You can suggest few external resources but do not provide the answer directly.
-    Answer the following question based on the context:\n\nContext: {context}\n\nQuestion: {question}
-    """
+    template=PROMPT_TEMPLATE
 )
 
 
@@ -84,9 +77,8 @@ os.environ["OPENAI_API_KEY"]=app.config['OPEN_AI_KEY']
 
 #AWS
 retry_config = botoConfig(
-    retries={
-        'max_attempts': 5,  # Maximum retry attempts
-        'mode': 'standard'   # Retry mode: "standard" (recommended) or "adaptive"
+   retries={
+        'total_max_attempts': 10
     }
 )
 
@@ -356,7 +348,6 @@ def ask_ollama():
     query_text = request.json.get('message')
     prefilter=request.json.get('selectedOption')
     isAgentic=request.json.get('isAgentic')
-    
     llm=app.config['OLLAMA_MODEL']
     client = MongoClient(app.config['MONGODB_URI'], server_api=ServerApi('1'))
     if query_text:
@@ -448,8 +439,6 @@ def ask_gpt35():
     query_text = request.json.get('message')
     prefilter=request.json.get('selectedOption')
     isAgentic=request.json.get('isAgentic')
-    if isAgentic:
-        print("isAgentic is true")
     llm = AzureChatOpenAI(
     azure_endpoint=app.config['AZURE_GPT35_ENDPOINT'],
     openai_api_key=app.config['AZURE_GPT35_KEY'],
@@ -550,7 +539,7 @@ def ask_gpt4o():
             
             
             else:
-                print(prefilter)
+                # print(prefilter)
                 metadata=prefilter.split("/")
                 if(metadata[1]=='mxbai-embed-large'):
                     embeddingModel=metadata[1]
@@ -600,9 +589,6 @@ def ask_gpt4o():
 def ask_deepSeek():
     query_text = request.json.get('message')
     prefilter=request.json.get('selectedOption')
-    isAgentic=request.json.get('isAgentic')
-    if isAgentic:
-        print("isAgentic is true")
     client = MongoClient(app.config['MONGODB_URI'], server_api=ServerApi('1'))
     REGION_NAME ='us-east-1'
     MODEL_ID= 'arn:aws:bedrock:us-east-1:979559056307:imported-model/kt0tr2ppv8lw'
@@ -669,9 +655,6 @@ def ask_deepSeek():
 def ask_claudeSonnet():
     query_text = request.json.get('message')
     prefilter=request.json.get('selectedOption')
-    isAgentic=request.json.get('isAgentic')
-    if isAgentic:
-        print("isAgentic is true")
     client = MongoClient(app.config['MONGODB_URI'], server_api=ServerApi('1'))
     model_id = 'anthropic.claude-3-5-sonnet-20240620-v1:0'
     if query_text:
