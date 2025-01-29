@@ -4,7 +4,7 @@ from flask import Flask, render_template, request, jsonify
 from flask import Flask, request, render_template, redirect, url_for, flash
 import ollama
 from werkzeug.utils import secure_filename
-from config import Config
+from config import Configuration
 # from openai import ChatCompletion
 from openai import OpenAI
 from langchain_community.document_loaders import PyPDFLoader
@@ -37,6 +37,13 @@ from langchain.embeddings import OpenAIEmbeddings
 from langchain_openai import AzureChatOpenAI
 
 
+#AWS Bedrock
+
+import boto3
+from botocore.exceptions import ClientError
+from botocore.config import Config as botoConfig
+
+
 PROMPT_TEMPLATE = """
     Use the following pieces of context to answer the question at the end.
     If you don't know the answer, just say that you don't know, don't try to make up an     answer.
@@ -67,13 +74,29 @@ app.config['TESTING'] = False
 
 
 #import config file
-app.config.from_object(Config)
+app.config.from_object(Configuration)
 DB_NAME=app.config['DB_NAME']
 COLLECTION_NAME=app.config['COLLECTION_NAME']
 
 #open ai variables
 openai_client = OpenAI(api_key=app.config['OPEN_AI_KEY'])
 os.environ["OPENAI_API_KEY"]=app.config['OPEN_AI_KEY']
+
+#AWS
+retry_config = botoConfig(
+    retries={
+        'max_attempts': 5,  # Maximum retry attempts
+        'mode': 'standard'   # Retry mode: "standard" (recommended) or "adaptive"
+    }
+)
+
+bedrock_runtime = boto3.client(
+    service_name='bedrock-runtime',
+    region_name='us-east-1',  # Replace with your AWS region
+    aws_access_key_id=app.config['AWS_ACCESS_KEY_ID'],
+    aws_secret_access_key=app.config['AWS_SECRET_ACCESS_KEY'],config=retry_config
+)
+
 
 
 AZURE_OPENAI_API_KEY = app.config['AZURE_OPENAI_API_KEY']
@@ -520,7 +543,7 @@ def ask_gpt4o():
                     {"role": "user", "content":query_text}
                 ])
 
-                print(response)
+                # print(response)
                
                 # print(response)
                 return jsonify({"response":response.content})
@@ -560,8 +583,12 @@ def ask_gpt4o():
             
             
 
+        except ClientError as e:
+            error_code = e.response['Error']['Code']
+            error_message = e.response['Error']['Message']
+            print(f"Error: {error_code} - {error_message}")
         except Exception as e:
-            return jsonify({"error": str(e)}), 500
+             print(f"Unexpected error: {str(e)}")
         
         finally:
             client.close()
@@ -569,6 +596,147 @@ def ask_gpt4o():
     return jsonify({"error": "No message provided"}), 400
 
 
+@app.route('/ask/deepseek', methods=['POST'])
+def ask_deepSeek():
+    query_text = request.json.get('message')
+    prefilter=request.json.get('selectedOption')
+    isAgentic=request.json.get('isAgentic')
+    if isAgentic:
+        print("isAgentic is true")
+    client = MongoClient(app.config['MONGODB_URI'], server_api=ServerApi('1'))
+    REGION_NAME ='us-east-1'
+    MODEL_ID= 'arn:aws:bedrock:us-east-1:979559056307:imported-model/kt0tr2ppv8lw'
+
+   
+    if query_text:
+        try:
+             # Call OpenAI's new chat-based API (using the correct model and chat completions)
+            if(prefilter=="dummy"):
+                invoke_response = bedrock_runtime.invoke_model(modelId=MODEL_ID, 
+                                            body=json.dumps({'prompt': query_text}), 
+                                            accept="application/json", 
+                                            contentType="application/json")
+                invoke_response["body"] = json.loads(invoke_response["body"].read().decode("utf-8"))
+                # print(invoke_response["body"]['generation'])
+                return jsonify({"response":invoke_response["body"]['generation']})
+            
+            
+            else:
+                # print(prefilter)
+                metadata=prefilter.split("/")
+                if(metadata[1]=='mxbai-embed-large'):
+                    embeddingModel=metadata[1]
+                    vector_index=app.config['MX_VECTOR']
+                else:
+                    embeddingModel="nomic-embed-text"
+                    vector_index=app.config['NOM_VECTOR']
+                
+                # print(embeddingModel+" is the embedding model and vector index is "+vector_index) 
+                
+                embedding_model = OllamaEmbeddings(model=embeddingModel)
+                mongo_collection=client[DB_NAME][COLLECTION_NAME]
+                vector_store = MongoDBAtlasVectorSearch(
+                    collection=mongo_collection,
+                    embedding=embedding_model,
+                    index_name=vector_index,
+                    relevance_score_fn="cosine",
+                    text_key="page_content")
+                documents=vector_store.similarity_search_with_score(query=query_text, k=5,pre_filter={"object_ref":prefilter})
+                context_text = "\n\n---\n\n".join([doc.page_content for doc, _score in documents])
+                prompt_template = ChatPromptTemplate.from_template(PROMPT_TEMPLATE)
+                prompt = prompt_template.format(context=context_text, question=query_text)
+                invoke_response = bedrock_runtime.invoke_model(modelId=MODEL_ID, 
+                                            body=json.dumps({'prompt': prompt}), 
+                                            accept="application/json", 
+                                            contentType="application/json")
+                invoke_response["body"] = json.loads(invoke_response["body"].read().decode("utf-8"))
+                # print(invoke_response["body"]['generation'])
+                # print(response)
+                # print(jsonify({"response": response.choices[0].message.content,"prompt":prompt}))
+                return jsonify({"response": invoke_response["body"]['generation'],"prompt":prompt})
+            
+            
+
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+        
+        finally:
+            client.close()
+
+
+
+@app.route('/ask/claude', methods=['POST'])
+def ask_claudeSonnet():
+    query_text = request.json.get('message')
+    prefilter=request.json.get('selectedOption')
+    isAgentic=request.json.get('isAgentic')
+    if isAgentic:
+        print("isAgentic is true")
+    client = MongoClient(app.config['MONGODB_URI'], server_api=ServerApi('1'))
+    model_id = 'anthropic.claude-3-5-sonnet-20240620-v1:0'
+    if query_text:
+        try:
+            if(prefilter=="dummy"):
+            # Call OpenAI's new chat-based API (using the correct model and chat completions)
+                    req_body =  json.dumps({
+                        "anthropic_version": "bedrock-2023-05-31",
+                        "max_tokens": 300,
+                        "temperature": 0.7,
+                        "messages": [
+                            {"role": "user", "content": query_text}
+                        ]
+                        })
+                    response = bedrock_runtime.invoke_model(modelId=model_id,body=req_body)
+                    response= json.loads(response['body'].read())
+                    print(response['content'][0]['text'])
+                    return jsonify({"response":response['content'][0]['text']})
+            
+            
+            else:
+                # print(prefilter)
+                metadata=prefilter.split("/")
+                if(metadata[1]=='mxbai-embed-large'):
+                    embeddingModel=metadata[1]
+                    vector_index=app.config['MX_VECTOR']
+                else:
+                    embeddingModel="nomic-embed-text"
+                    vector_index=app.config['NOM_VECTOR']
+                
+                # print(embeddingModel+" is the embedding model and vector index is "+vector_index) 
+                
+                embedding_model = OllamaEmbeddings(model=embeddingModel)
+                mongo_collection=client[DB_NAME][COLLECTION_NAME]
+                vector_store = MongoDBAtlasVectorSearch(
+                    collection=mongo_collection,
+                    embedding=embedding_model,
+                    index_name=vector_index,
+                    relevance_score_fn="cosine",
+                    text_key="page_content")
+                documents=vector_store.similarity_search_with_score(query=query_text, k=5,pre_filter={"object_ref":prefilter})
+                context_text = "\n\n---\n\n".join([doc.page_content for doc, _score in documents])
+                prompt_template = ChatPromptTemplate.from_template(PROMPT_TEMPLATE)
+                prompt = prompt_template.format(context=context_text, question=query_text)
+                req_body =  json.dumps({
+                        "anthropic_version": "bedrock-2023-05-31",
+                        "max_tokens": 300,
+                        "temperature": 0.7,
+                        "messages": [
+                            {"role": "user", "content": prompt}
+                        ]
+                        })
+                response = bedrock_runtime.invoke_model(modelId=model_id,body=req_body)
+                response= json.loads(response['body'].read())
+                # print(response)
+                # print(jsonify({"response": response.choices[0].message.content,"prompt":prompt}))
+                return jsonify({"response": response['content'][0]['text'],"prompt":prompt})
+            
+            
+
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+        
+        finally:
+            client.close()
 
 if __name__ == '__main__':
     app.run(debug=True)

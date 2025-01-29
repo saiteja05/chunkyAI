@@ -369,17 +369,21 @@
                     </div>
 
                     <div class="mt-3">
+                        <label>
+                            <input type="checkbox" id="agenticSelector" name="agenticCheckbox" value="agentic">
+                           Multi-model
+                        </label>
+                        <br>
                         <label for="modelSelect" class="form-label">Select Foundation Model</label>
                         <select class="form-control" id="modelSelect">
                             <option value="ollama">llama3</option>
                             <option value="gpt-3.5">GPT-3.5-Turbo</option>
                             <option value="gpt-4o">GPT-4o</option>
+                            <option value="claude35">Claude Sonnet 3.5 V1</option>
+                            <option value="deepseek">DeepSeek-R1-Distill-Llama-8B(experimental)</option>
                         </select>
                         <br>
-                        <label>
-                            <input type="checkbox" id="agenticSelector" name="agenticCheckbox" value="agentic">
-                            Agentic Rag
-                        </label>
+                       
                     </div>
                     <hr>
                 </div>
@@ -401,6 +405,11 @@
         <a href="https://www.langchain.com/"><img src="../static/images/langchain-logo.png" alt="LangChain" title="LangChain"></a>
         <a href="https://openai.com/"><img src="../static/images/openai-logo.png" alt="OpenAI" title="OpenAI"></a>
         <a href="https://ollama.com/" ><img src="../static/images/llama_white.png" alt="OLLAMA" title="OLLAMA"></a>
+        <a href="https://www.anthropic.com/" ><img src="../static/images/Anthropic.png" alt="Anthropic" title="Anthropic"></a>
+        <a href="https://www.deepseek.com/"><img src="../static/images/deepseek.png" alt="DeepSeek" title="DeepSeek"></a>
+        <a href="https://www.aws.com/" ><img src="../static/images/aws.png" alt="AWS" title="AWS"></a>
+        <a href="https://www.azure.com/" ><img src="../static/images/azure.png" alt="Azure" title="Azure"></a>
+        
     </div>
 
     <!-- Bootstrap JS Bundle -->
@@ -438,7 +447,13 @@
                     data = await callOllama(userMessage, selectedOption, agenticCheckbox.checked);
                 } else if (selectedModel === "gpt-3.5") {
                     data = await callGPT(userMessage, selectedOption, agenticCheckbox.checked);
-                } else {
+                }else if (selectedModel === "claude35") {
+                    data = await callClaude(userMessage, selectedOption, agenticCheckbox.checked);
+                }
+                else if (selectedModel === "deepseek") {
+                    data = await callDeepseek(userMessage, selectedOption, agenticCheckbox.checked);
+                }
+                else {
                     data = await callGPT4o(userMessage, selectedOption, agenticCheckbox.checked);
                 }
 
@@ -530,6 +545,56 @@
             return "Error communicating with GPT-3.5";
         }
     }
+
+// Function to call Deepseek API
+async function callDeepseek(message,selectedOption,isAgentic) {
+    try {
+        const response = await fetch('/ask/deepseek', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+             message: message,
+             selectedOption: selectedOption,
+             isAgentic: isAgentic  // Send the selected option along with the message
+         })
+        });
+
+        const data = await response.json();
+        
+        return data|| "No response from DeepSeekR1";
+    } catch (error) {
+        console.error('Error calling DeepSeekR1:', error);
+        return "Error communicating with DeepSeekR1";
+    }
+ }
+
+// Function to call claude API
+ async function callClaude(message,selectedOption,isAgentic) {
+    try {
+        const response = await fetch('/ask/claude', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+             message: message,
+             selectedOption: selectedOption,
+             isAgentic: isAgentic  // Send the selected option along with the message
+         })
+        });
+
+        const data = await response.json();
+        
+        return data|| "No response from Anthropic";
+    } catch (error) {
+        console.error('Error calling Anthropic:', error);
+        return "Error communicating with Anthropic";
+    }
+ }
+
+
  // Function to call GPT-4.0 API
  async function callGPT4o(message,selectedOption,isAgentic) {
     try {
@@ -552,7 +617,7 @@
         console.error('Error calling GPT-4.0:', error);
         return "Error communicating with GPT-4.0";
     }
-}
+ }
 
 
     // Function to fetch MongoDB options
