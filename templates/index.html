@@ -445,6 +445,13 @@
     
     <!-- Your existing JavaScript code -->
     <script>
+        // Add this function at the beginning of your script section
+        function generateSessionId() {
+            return 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+            }
+    
+        // Create a session ID when the page loads
+        const sessionId = generateSessionId();
         const sendMessageBtn = document.getElementById('sendMessageBtn');
         const userInput = document.getElementById('userInput');
         const chatContainer = document.getElementById('chatContainer');
@@ -472,17 +479,17 @@
 
                 let data;
                 if (selectedModel === "ollama") {
-                    data = await callOllama(userMessage, selectedOption, agenticCheckbox.checked);
+                    data = await callOllama(userMessage, selectedOption, agenticCheckbox.checked,sessionId);
                 } else if (selectedModel === "gpt-3.5") {
-                    data = await callGPT(userMessage, selectedOption, agenticCheckbox.checked);
+                    data = await callGPT(userMessage, selectedOption, agenticCheckbox.checked,sessionId);
                 }else if (selectedModel === "claude35") {
-                    data = await callClaude(userMessage, selectedOption, agenticCheckbox.checked);
+                    data = await callClaude(userMessage, selectedOption, agenticCheckbox.checked,sessionId);
                 }
                 else if (selectedModel === "deepseek") {
-                    data = await callDeepseek(userMessage, selectedOption, agenticCheckbox.checked);
+                    data = await callDeepseek(userMessage, selectedOption, agenticCheckbox.checked,sessionId);
                 }
                 else {
-                    data = await callGPT4o(userMessage, selectedOption, agenticCheckbox.checked);
+                    data = await callGPT4o(userMessage, selectedOption, agenticCheckbox.checked,sessionId);
                 }
 
                 if (data) {
@@ -525,7 +532,7 @@
 
 
     // Function to call Ollama API
-    async function callOllama(message,selectedOption,isAgentic) {
+    async function callOllama(message,selectedOption,isAgentic,sessionId) {
         try {
             const response = await fetch('/ask/ollama', {
                 method: 'POST',
@@ -536,6 +543,7 @@
                  message: message,
                  selectedOption: selectedOption,
                  isAgentic: isAgentic // Send the selected option along with the message
+                 ,sessionId: sessionId
              })
             });
 
@@ -551,7 +559,7 @@
     }
 
     // Function to call GPT-3.5 API
-    async function callGPT(message,selectedOption,isAgentic) {
+    async function callGPT(message,selectedOption,isAgentic,session) {
         try {
             const response = await fetch('/ask/gpt-3.5', {
                 method: 'POST',
@@ -562,6 +570,7 @@
                  message: message,
                  selectedOption: selectedOption,
                  isAgentic: isAgentic  // Send the selected option along with the message
+                 ,sessionId: sessionId
              })
             });
 
@@ -575,7 +584,7 @@
     }
 
 // Function to call Deepseek API
-async function callDeepseek(message,selectedOption,isAgentic) {
+async function callDeepseek(message,selectedOption,isAgentic,sessionId) {
     try {
         const response = await fetch('/ask/deepseek', {
             method: 'POST',
@@ -586,6 +595,7 @@ async function callDeepseek(message,selectedOption,isAgentic) {
              message: message,
              selectedOption: selectedOption,
              isAgentic: isAgentic  // Send the selected option along with the message
+             ,sessionId: sessionId
          })
         });
 
@@ -599,7 +609,7 @@ async function callDeepseek(message,selectedOption,isAgentic) {
  }
 
 // Function to call claude API
- async function callClaude(message,selectedOption,isAgentic) {
+ async function callClaude(message,selectedOption,isAgentic,sessionId) {
     try {
         const response = await fetch('/ask/claude', {
             method: 'POST',
@@ -610,6 +620,7 @@ async function callDeepseek(message,selectedOption,isAgentic) {
              message: message,
              selectedOption: selectedOption,
              isAgentic: isAgentic  // Send the selected option along with the message
+             ,sessionId: sessionId
          })
         });
 
@@ -624,7 +635,7 @@ async function callDeepseek(message,selectedOption,isAgentic) {
 
 
  // Function to call GPT-4.0 API
- async function callGPT4o(message,selectedOption,isAgentic) {
+ async function callGPT4o(message,selectedOption,isAgentic,sessionId) {
     try {
         const response = await fetch('/ask/gpt-4.0', {
             method: 'POST',
@@ -635,6 +646,7 @@ async function callDeepseek(message,selectedOption,isAgentic) {
              message: message,
              selectedOption: selectedOption,
              isAgentic: isAgentic  // Send the selected option along with the message
+             ,sessionId: sessionId
          })
         });
 

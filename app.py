@@ -16,14 +16,15 @@ from tenacity import (
     stop_after_attempt,
     wait_random_exponential,
 ) 
-from langchain.tools import Tool
-from langchain.chains import RetrievalQA
+# from langchain.tools import Tool
+# from langchain.chains import RetrievalQA
+
+import datetime
 
 
 #for semantic chunking
 
 from langchain_experimental.text_splitter import SemanticChunker
-from langchain_openai.embeddings import OpenAIEmbeddings
 from langchain_ollama import OllamaEmbeddings
 
 #for  data in MongoDB
@@ -33,7 +34,6 @@ from langchain_mongodb import MongoDBAtlasVectorSearch
 
 
 from langchain.prompts import PromptTemplate
-from langchain.embeddings import OpenAIEmbeddings
 from langchain_openai import AzureChatOpenAI
 
 
@@ -45,11 +45,13 @@ from botocore.config import Config as botoConfig
 
 
 PROMPT_TEMPLATE = """
-    Use the following pieces of context to answer the question at the end.
+    
+    Use the following pieces of context and previous messages to answer the question at the end.
     If you don't know the answer, just say that you don't know, don't try to make up an     answer.
     Do not answer the question if there is no given context.
     Do not answer the question if it is not related to the context.
     You can suggest few external resources but do not provide the answer directly.
+    Previous messages for your info : {prevMessages}
     Answer the following question based on the context:\n\nContext: {context}\n------------------\nQuestion: {question}
     """
 
@@ -341,6 +343,68 @@ def chat_completion_backoff(**kwargs):
 def embedding_create_backoff(**kwargs):
     return openai_client.embeddings.create(**kwargs)
 
+def get_conversation(client, conversation_id):
+    try:
+        chat_collection = client[DB_NAME]['chat_history']
+        chat_history = chat_collection.find_one({'conversation_id': conversation_id})
+        if not chat_history:
+            # Initialize new conversation
+            chat_history = {
+                    'conversation_id': conversation_id,
+                    'messages': [],
+                    'created_at': datetime.datetime.now()
+                }
+            chat_collection.insert_one(chat_history)
+            
+        previous_messages = [
+            {"role": msg["role"], "content": msg["content"]}
+            for msg in chat_history.get('messages', [])
+            ]
+        if previous_messages.__len__()>20:
+            print("limit exceeded, need to summarize")
+        return previous_messages
+    except Exception as e:
+        print(str(e))
+        return []
+
+#updates exiting conversation with new messages
+def insert_conversation(client, conversation_id, query, response):
+    try:
+        chat_collection = client[DB_NAME]['chat_history']
+        chat_collection.update_one(
+                        {'conversation_id': conversation_id},
+                        {
+                            '$push': {
+                             'messages': {
+                                 '$each': [
+                                    {"role": "user", "content": query},
+                                    {"role": "assistant", "content": response}
+                                 ]
+                                }
+                             }
+                        }
+                        )
+    except Exception as e:
+        print(str(e))
+
+def generate_prompt(client,embedding_model,vector_index,query_text,prefilter,previous_messages):
+     try:
+        mongo_collection=client[DB_NAME][COLLECTION_NAME]
+        vector_store = MongoDBAtlasVectorSearch(
+                    collection=mongo_collection,
+                    embedding=embedding_model,
+                    index_name=vector_index,
+                    relevance_score_fn="cosine",
+                    text_key="page_content")
+                
+        retrieved_docs = vector_store.similarity_search_with_score(query=query_text, k=10,pre_filter={"object_ref":prefilter})
+        context_text = "\n\n---\n\n".join([doc.page_content for doc, _score in retrieved_docs])
+        prompt_template = ChatPromptTemplate.from_template(PROMPT_TEMPLATE)
+        prompt_text = prompt_template.format(prevMessages=previous_messages, context=context_text, question=query_text) 
+        return prompt_text
+     except Exception as e:
+        print(str(e))
+        return None     
 
 
 @app.route('/ask/ollama', methods=['POST'])
@@ -350,11 +414,14 @@ def ask_ollama():
     isAgentic=request.json.get('isAgentic')
     llm=app.config['OLLAMA_MODEL']
     client = MongoClient(app.config['MONGODB_URI'], server_api=ServerApi('1'))
+    conversation_id = request.json.get('sessionId')
     if query_text:
         try:
+            previous_messages=get_conversation(client, conversation_id)
             if(prefilter=="dummy"):
-                response = ollama.chat(model=llm, messages=[{'role': 'user', 'content':query_text },]) #role can be  'user', 'assistant', 'system' or 'tool'
+                response = ollama.chat(model=llm, messages=previous_messages+[{'role': 'user', 'content':query_text },]) #role can be  'user', 'assistant', 'system' or 'tool'
                 if response.done:
+                    insert_conversation(client, conversation_id, query_text, response.message.content)
                  
                     return jsonify({"response":response.message.content});
                 else:
@@ -371,67 +438,22 @@ def ask_ollama():
             
                 model = OllamaLLM(model=llm)
                 embedding_model = OllamaEmbeddings(model=embeddingModel)
-              
-                mongo_collection=client[DB_NAME][COLLECTION_NAME]
-                
-                vector_store = MongoDBAtlasVectorSearch(
-                    collection=mongo_collection,
-                    embedding=embedding_model,
-                    index_name=vector_index,
-                    relevance_score_fn="cosine",
-                    text_key="page_content")
 
-                if isAgentic is True:
-                    retriever =vector_store.as_retriever(
-                         search_kwargs={
-                                 'k': 10,
-                         'pre_filter': { 'object_ref': prefilter} 
-                     }
-                    )
-                    qa_chain = RetrievalQA.from_chain_type(
-                        retriever=retriever,
-                        llm=model,
-                        chain_type_kwargs={"prompt": custom_prompt,"verbose": True},
-                        return_source_documents=True
-                        
-                    )
-                    response = qa_chain.invoke(query_text)
-                    combine_chain = qa_chain.combine_documents_chain
-                    prompt_template = combine_chain.llm_chain.prompt
+                prompt_text=generate_prompt(client,embedding_model,vector_index,query_text,prefilter,previous_messages)
 
-                   # Fetch the prompt variables
-                    context = "\n\n".join([doc.page_content for doc in response["source_documents"]])
-                   
-
-                    # Construct the generated prompt
-                    generated_prompt = prompt_template.format(context=context, question=query_text)
-                    return jsonify({"response":response['result'],"prompt":generated_prompt})
-               
-
-              
-
-                retrieved_docs = vector_store.similarity_search_with_score(query=query_text, k=10,pre_filter={"object_ref":prefilter})
-                context_text = "\n\n---\n\n".join([doc.page_content for doc, _score in retrieved_docs])
-                prompt_template = ChatPromptTemplate.from_template(PROMPT_TEMPLATE)
-                prompt_text = prompt_template.format(context=context_text, question=query_text) 
-                  
-
-
+                if(prompt_text is  None):
+                    prompt_text="Error generating prompt retry"               
                 response=model.invoke(prompt_text)
-                
-
+                insert_conversation(client, conversation_id, query_text, response)
                 return jsonify({"response":response,"prompt":prompt_text})
-
-        
-
-
-
+          
         except Exception as e:
             return jsonify({"error": str(e)}), 500
         
         finally:
             client.close()
     return jsonify({"error": "No message provided"}), 400
+
 
 
 @app.route('/ask/gpt-3.5', methods=['POST'])
@@ -446,23 +468,21 @@ def ask_gpt35():
     temperature=0.7,
     max_tokens=4096
     )
-
+    conversation_id = request.json.get('sessionId')
     client = MongoClient(app.config['MONGODB_URI'], server_api=ServerApi('1'))
-    # Ensure user_input is not empty
     if query_text:
         try:
+            previous_messages=get_conversation(client, conversation_id)
             if(prefilter=="dummy"):
-            # Call OpenAI's new chat-based API (using the correct model and chat completions)
-                response = llm.invoke([
+                response = llm.invoke(previous_messages+[
                         {"role": "system", "content": "you are a helpful chatbot"},
                         {"role": "user", "content": query_text},
                     ]
                 )
                
-                # print(response)
+                insert_conversation(client, conversation_id, query_text, response.content)
+       
                 return jsonify({"response":response.content})
-            
-            
             else:
                 metadata=prefilter.split("/")
                 if(metadata[1]=='mxbai-embed-large'):
@@ -472,30 +492,20 @@ def ask_gpt35():
                     embeddingModel="nomic-embed-text"
                     vector_index=app.config['NOM_VECTOR']
                 
-                # print(embeddingModel+" is the embedding model and vector index is "+vector_index) 
-                
                 embedding_model = OllamaEmbeddings(model=embeddingModel)
-                mongo_collection=client[DB_NAME][COLLECTION_NAME]
-                vector_store = MongoDBAtlasVectorSearch(
-                    collection=mongo_collection,
-                    embedding=embedding_model,
-                    index_name=vector_index,
-                    relevance_score_fn="cosine",
-                    text_key="page_content")
-                documents=vector_store.similarity_search_with_score(query=query_text, k=5,pre_filter={"object_ref":prefilter})
-                context_text = "\n\n---\n\n".join([doc.page_content for doc, _score in documents])
-                prompt_template = ChatPromptTemplate.from_template(PROMPT_TEMPLATE)
-                prompt = prompt_template.format(context=context_text, question=query_text)
+                prompt_text=generate_prompt(client,embedding_model,vector_index,query_text,prefilter,previous_messages)
+
+                if(prompt_text is  None):
+                    prompt_text="Error generating prompt retry"     
                 response = llm.invoke(input=[
                     {"role": "system", "content": "You are a helpful assistant that answers questions based on provided context."},
-                    {"role": "user", "content": prompt}
+                    {"role": "user", "content": prompt_text}
                     ])
-                # print(jsonify({"response": response.choices[0].message.content,"prompt":prompt}))
-                return jsonify({"response": response.content,"prompt":prompt})
-            
-            
+                insert_conversation(client, conversation_id, query_text, response.content)
+                return jsonify({"response": response.content,"prompt":prompt_text})
 
         except Exception as e:
+            print(str(e))
             return jsonify({"error": str(e)}), 500
         
         finally:
@@ -520,24 +530,18 @@ def ask_gpt4o():
     temperature=0.7,
     max_tokens=4096
     )
-
-    # Ensure user_input is not empty
+    conversation_id = request.json.get('sessionId')
     if query_text:
         try:
+            previous_messages=get_conversation(client, conversation_id)
             if(prefilter=="dummy"):
             # Call OpenAI's new chat-based API (using the correct model and chat completions)
-
-                response = llm.invoke([
+                response = llm.invoke(previous_messages+[
                     {"role": "system", "content": "You are a helpful assistant that answers questions based on provided context."},
                     {"role": "user", "content":query_text}
                 ])
-
-                # print(response)
-               
-                # print(response)
+                insert_conversation(client, conversation_id, query_text, response.content)
                 return jsonify({"response":response.content})
-            
-            
             else:
                 # print(prefilter)
                 metadata=prefilter.split("/")
@@ -547,31 +551,16 @@ def ask_gpt4o():
                 else:
                     embeddingModel="nomic-embed-text"
                     vector_index=app.config['NOM_VECTOR']
-                
-                # print(embeddingModel+" is the embedding model and vector index is "+vector_index) 
-                
                 embedding_model = OllamaEmbeddings(model=embeddingModel)
-                mongo_collection=client[DB_NAME][COLLECTION_NAME]
-                vector_store = MongoDBAtlasVectorSearch(
-                    collection=mongo_collection,
-                    embedding=embedding_model,
-                    index_name=vector_index,
-                    relevance_score_fn="cosine",
-                    text_key="page_content")
-                documents=vector_store.similarity_search_with_score(query=query_text, k=5,pre_filter={"object_ref":prefilter})
-                context_text = "\n\n---\n\n".join([doc.page_content for doc, _score in documents])
-                prompt_template = ChatPromptTemplate.from_template(PROMPT_TEMPLATE)
-                prompt = prompt_template.format(context=context_text, question=query_text)
+                prompt_text=generate_prompt(client,embedding_model,vector_index,query_text,prefilter,previous_messages)
+                if(prompt_text is  None):
+                    prompt_text="Error generating prompt retry"     
                 response = llm.invoke(input=[
                     {"role": "system", "content": "You are a helpful assistant that answers questions based on provided context."},
-                    {"role": "user", "content": prompt}
+                    {"role": "user", "content": prompt_text}
                     ])
-                # print(response)
-                # print(jsonify({"response": response.choices[0].message.content,"prompt":prompt}))
-                return jsonify({"response": response.content,"prompt":prompt})
-            
-            
-
+                insert_conversation(client, conversation_id, query_text, response.content)
+                return jsonify({"response": response.content,"prompt":prompt_text})
         except ClientError as e:
             error_code = e.response['Error']['Code']
             error_message = e.response['Error']['Message']
@@ -592,23 +581,19 @@ def ask_deepSeek():
     client = MongoClient(app.config['MONGODB_URI'], server_api=ServerApi('1'))
     REGION_NAME ='us-east-1'
     MODEL_ID= 'arn:aws:bedrock:us-east-1:979559056307:imported-model/kt0tr2ppv8lw'
-
-   
+    conversation_id = request.json.get('sessionId')
     if query_text:
         try:
-             # Call OpenAI's new chat-based API (using the correct model and chat completions)
+            previous_messages=get_conversation(client, conversation_id)
             if(prefilter=="dummy"):
                 invoke_response = bedrock_runtime.invoke_model(modelId=MODEL_ID, 
                                             body=json.dumps({'prompt': query_text}), 
                                             accept="application/json", 
                                             contentType="application/json")
                 invoke_response["body"] = json.loads(invoke_response["body"].read().decode("utf-8"))
-                # print(invoke_response["body"]['generation'])
+                insert_conversation(client, conversation_id, query_text, invoke_response["body"]['generation'])
                 return jsonify({"response":invoke_response["body"]['generation']})
-            
-            
             else:
-                # print(prefilter)
                 metadata=prefilter.split("/")
                 if(metadata[1]=='mxbai-embed-large'):
                     embeddingModel=metadata[1]
@@ -616,33 +601,17 @@ def ask_deepSeek():
                 else:
                     embeddingModel="nomic-embed-text"
                     vector_index=app.config['NOM_VECTOR']
-                
-                # print(embeddingModel+" is the embedding model and vector index is "+vector_index) 
-                
                 embedding_model = OllamaEmbeddings(model=embeddingModel)
-                mongo_collection=client[DB_NAME][COLLECTION_NAME]
-                vector_store = MongoDBAtlasVectorSearch(
-                    collection=mongo_collection,
-                    embedding=embedding_model,
-                    index_name=vector_index,
-                    relevance_score_fn="cosine",
-                    text_key="page_content")
-                documents=vector_store.similarity_search_with_score(query=query_text, k=5,pre_filter={"object_ref":prefilter})
-                context_text = "\n\n---\n\n".join([doc.page_content for doc, _score in documents])
-                prompt_template = ChatPromptTemplate.from_template(PROMPT_TEMPLATE)
-                prompt = prompt_template.format(context=context_text, question=query_text)
+                prompt_text=generate_prompt(client,embedding_model,vector_index,query_text,prefilter,previous_messages)
+                if(prompt_text is  None):
+                    prompt_text="Error generating prompt retry"     
                 invoke_response = bedrock_runtime.invoke_model(modelId=MODEL_ID, 
-                                            body=json.dumps({'prompt': prompt}), 
+                                            body=json.dumps({'prompt': prompt_text}), 
                                             accept="application/json", 
                                             contentType="application/json")
                 invoke_response["body"] = json.loads(invoke_response["body"].read().decode("utf-8"))
-                # print(invoke_response["body"]['generation'])
-                # print(response)
-                # print(jsonify({"response": response.choices[0].message.content,"prompt":prompt}))
-                return jsonify({"response": invoke_response["body"]['generation'],"prompt":prompt})
-            
-            
-
+                insert_conversation(client, conversation_id, query_text, invoke_response["body"]['generation'])
+                return jsonify({"response": invoke_response["body"]['generation'],"prompt":prompt_text})
         except Exception as e:
             return jsonify({"error": str(e)}), 500
         
@@ -657,26 +626,24 @@ def ask_claudeSonnet():
     prefilter=request.json.get('selectedOption')
     client = MongoClient(app.config['MONGODB_URI'], server_api=ServerApi('1'))
     model_id = 'anthropic.claude-3-5-sonnet-20240620-v1:0'
+    conversation_id = request.json.get('sessionId')
     if query_text:
         try:
+            previous_messages=get_conversation(client, conversation_id)
             if(prefilter=="dummy"):
-            # Call OpenAI's new chat-based API (using the correct model and chat completions)
                     req_body =  json.dumps({
                         "anthropic_version": "bedrock-2023-05-31",
                         "max_tokens": 300,
                         "temperature": 0.7,
-                        "messages": [
-                            {"role": "user", "content": query_text}
-                        ]
+                        "messages": previous_messages + [
+                        {"role": "user", "content": query_text}
+                    ]
                         })
                     response = bedrock_runtime.invoke_model(modelId=model_id,body=req_body)
                     response= json.loads(response['body'].read())
-                    print(response['content'][0]['text'])
+                    insert_conversation(client, conversation_id, query_text, response['content'][0]['text'])
                     return jsonify({"response":response['content'][0]['text']})
-            
-            
             else:
-                # print(prefilter)
                 metadata=prefilter.split("/")
                 if(metadata[1]=='mxbai-embed-large'):
                     embeddingModel=metadata[1]
@@ -684,34 +651,23 @@ def ask_claudeSonnet():
                 else:
                     embeddingModel="nomic-embed-text"
                     vector_index=app.config['NOM_VECTOR']
-                
-                # print(embeddingModel+" is the embedding model and vector index is "+vector_index) 
-                
                 embedding_model = OllamaEmbeddings(model=embeddingModel)
-                mongo_collection=client[DB_NAME][COLLECTION_NAME]
-                vector_store = MongoDBAtlasVectorSearch(
-                    collection=mongo_collection,
-                    embedding=embedding_model,
-                    index_name=vector_index,
-                    relevance_score_fn="cosine",
-                    text_key="page_content")
-                documents=vector_store.similarity_search_with_score(query=query_text, k=5,pre_filter={"object_ref":prefilter})
-                context_text = "\n\n---\n\n".join([doc.page_content for doc, _score in documents])
-                prompt_template = ChatPromptTemplate.from_template(PROMPT_TEMPLATE)
-                prompt = prompt_template.format(context=context_text, question=query_text)
+                prompt_text=generate_prompt(client,embedding_model,vector_index,query_text,prefilter,previous_messages)
+
+                if(prompt_text is  None):
+                    prompt_text="Error generating prompt retry"     
                 req_body =  json.dumps({
                         "anthropic_version": "bedrock-2023-05-31",
                         "max_tokens": 300,
                         "temperature": 0.7,
                         "messages": [
-                            {"role": "user", "content": prompt}
+                            {"role": "user", "content": prompt_text}
                         ]
                         })
                 response = bedrock_runtime.invoke_model(modelId=model_id,body=req_body)
                 response= json.loads(response['body'].read())
-                # print(response)
-                # print(jsonify({"response": response.choices[0].message.content,"prompt":prompt}))
-                return jsonify({"response": response['content'][0]['text'],"prompt":prompt})
+                insert_conversation(client, conversation_id, query_text, response['content'][0]['text'])
+                return jsonify({"response": response['content'][0]['text'],"prompt":prompt_text})
             
             
 
@@ -723,3 +679,35 @@ def ask_claudeSonnet():
 
 if __name__ == '__main__':
     app.run(debug=True)
+
+
+
+
+
+
+
+  
+                #     retriever =vector_store.as_retriever(
+                #          search_kwargs={
+                #                  'k': 10,
+                #          'pre_filter': { 'object_ref': prefilter} 
+                #      }
+                #     )
+                #     qa_chain = RetrievalQA.from_chain_type(
+                #         retriever=retriever,
+                #         llm=model,
+                #         chain_type_kwargs={"prompt": custom_prompt,"verbose": True},
+                #         return_source_documents=True
+                        
+                #     )
+                #     response = qa_chain.invoke(query_text)
+                #     combine_chain = qa_chain.combine_documents_chain
+                #     prompt_template = combine_chain.llm_chain.prompt
+
+                #    # Fetch the prompt variables
+                #     context = "\n\n".join([doc.page_content for doc in response["source_documents"]])
+                   
+
+                #     # Construct the generated prompt
+                #     generated_prompt = prompt_template.format(context=context, question=query_text)
+                #     return jsonify({"response":response['result'],"prompt":generated_prompt})
