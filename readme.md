@@ -93,9 +93,7 @@ Currently, the application does not have capability to vectorize images and tabl
 
 ## TODO
 - [ ] Support for getting data URLs not pdf's alone.
-- [ ] Pure agentic RAG and auto fine tune prompts.
 - [ ] Semantic Cache.
-- [ ] Chat History.
 - [ ] Quantization 
 
 For chat history and agent integration, you can explore:

@@ -279,7 +279,7 @@
 
           .responsive-img {
             width: 50%; /* Adjust as needed */
-            max-width: 500px;
+            max-width: 600px;
             height: auto;
             display: none; 
             margin: auto;
@@ -387,8 +387,8 @@
 
                     <div class="mt-3">
                         <label>
-                            <input type="checkbox" id="agenticSelector" name="agenticCheckbox" value="agentic">
-                           Agentic RAG (Multi-model with Web Agent , Wikipedia Agent & MongoDB Retriever)
+                            <input type="checkbox"  id="agenticSelector" name="agenticCheckbox" value="agentic">
+                           <b style="font-family: 'Brush Script MT', 'Comic Sans MS', cursive; font-size: 30px;color: var(--accent-green);" ><i>Agentic</i></b>
                            <img src="../static/images/langgraph.png" id="graphimg" alt="langgraph" title="langgraph" class="responsive-img">
                         </label>
                         <hr>
@@ -485,7 +485,7 @@
                 }
 
                 if (data) {
-                    chatContainer.innerHTML += `<div class="ai-message"><strong style="color: var(--accent-green)">AI:</strong> ${data.response.replace(/\n/g, "<br>").replace(/\*\*(.*?)\*\*/g, "<b>$1</b>")}</div>` ;
+                    chatContainer.innerHTML += `<div class="ai-message"><strong style="color: var(--accent-green)">AI:</strong> ${data.response.replace(/\n/g, "<br>").replace(/\*\*(.*?)\*\*/g, "<b>$1</b>").replace(/\[([^\]]+)\]/g, "<br><b>$1</b>")}</div>` ;
 
                } else {
                 chatContainer.innerHTML += `<div  class="ai-message" style="color: red;"<strong>Error:</strong><i>Something went wrong.</i></div>`;
