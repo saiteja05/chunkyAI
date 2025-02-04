@@ -43,23 +43,49 @@ import boto3
 from botocore.exceptions import ClientError
 from botocore.config import Config as botoConfig
 
+#multiagent
 
-PROMPT_TEMPLATE = """
-    
-    Use the following pieces of context and previous messages to answer the question at the end.
-    If you don't know the answer, just say that you don't know, don't try to make up an     answer.
-    Do not answer the question if there is no given context.
-    Do not answer the question if it is not related to the context.
-    You can suggest few external resources but do not provide the answer directly.
-    Previous messages for your info : {prevMessages}
-    Answer the following question based on the context:\n\nContext: {context}\n------------------\nQuestion: {question}
-    """
+from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_community.document_loaders import WikipediaLoader
+from langchain_community.tools import TavilySearchResults
+from IPython.display import Image, display
+from IPython.display import Image, display
+from typing import Any
+import operator
+from typing_extensions import TypedDict
+from typing import Annotated
+from langgraph.graph import StateGraph, START, END
+import os
 
-# Define the custom prompt
-custom_prompt = PromptTemplate(
-    input_variables=["context", "question"],
-    template=PROMPT_TEMPLATE
-)
+
+PROMPT_TEMPLATE= """Use the following context and previous messages to answer the question or summarize the conversation so far.
+
+- Only use the provided context to generate a response. If the required information is missing, state that you don’t know the answer instead of making one up.
+- Do not answer if the question is unrelated to the given context.
+- If applicable, you may suggest external resources but do not attempt to provide an answer beyond what is available in the context.
+- If relevant, provide web links to external sources where the user can find more information.
+
+### Previous Messages:
+{prevMessages}
+
+### Context for the Answer:
+{context}
+
+------------------
+### Question:
+{question}
+
+------------------
+### Answer Format:
+- Provide a direct answer if the information is available in the context.
+- If the information is missing, state: "The provided context does not contain the required information."
+- If the question is unrelated, state: "This question is not relevant to the given context."
+- If suggesting resources, format as:  
+  - **External Sources:** Provide useful web links if available. Format as: "[Resource Name](URL)"  
+  - Example: "You may refer to [MongoDB Documentation](https://www.mongodb.com/docs/) for more details."
+"""
+
+
 
 
 # Initialize the Flask application
@@ -76,6 +102,7 @@ COLLECTION_NAME=app.config['COLLECTION_NAME']
 #open ai variables
 openai_client = OpenAI(api_key=app.config['OPEN_AI_KEY'])
 os.environ["OPENAI_API_KEY"]=app.config['OPEN_AI_KEY']
+os.environ["TAVILY_API_KEY"]=app.config['TAVILY_API_KEY']
 
 #AWS
 retry_config = botoConfig(
@@ -343,6 +370,35 @@ def chat_completion_backoff(**kwargs):
 def embedding_create_backoff(**kwargs):
     return openai_client.embeddings.create(**kwargs)
 
+
+def summarize(previous_messages,client,conversation_id):
+    try:
+        chat_collection = client[DB_NAME]['chat_history']
+        llm = AzureChatOpenAI(
+            azure_endpoint=AZURE_OPENAI_ENDPOINT,
+            openai_api_key=AZURE_OPENAI_API_KEY,
+            openai_api_version=AZURE_OPENAI_API_VERSION,
+            temperature=0.7,
+            max_tokens=4096
+            )
+        prompt="""
+        I have been chatting with a GenAI-based application to understand a few concepts.
+         I am passing my previous conversation as additional context to the LLM. Below are my past messages: {prevMessages}. 
+         Please summarize them concisely so I can pass them back and continue the conversation without losing context.
+         """
+        prompt_template = ChatPromptTemplate.from_template(prompt)
+        prompt_text = prompt_template.format(prevMessages=previous_messages)
+        response = llm.invoke(input=[
+                    {"role": "system", "content": "You are a helpful assistant that answers questions based on provided context."},
+                    {"role": "user", "content": prompt_text}
+                    ])
+        update_conversation(client, conversation_id, "summary of the conversation thus far", response.content,True)
+        return get_conversation(client, conversation_id)
+        
+    except Exception as e:
+        print(str(e))
+
+
 def get_conversation(client, conversation_id):
     try:
         chat_collection = client[DB_NAME]['chat_history']
@@ -360,17 +416,26 @@ def get_conversation(client, conversation_id):
             {"role": msg["role"], "content": msg["content"]}
             for msg in chat_history.get('messages', [])
             ]
-        if previous_messages.__len__()>20:
-            print("limit exceeded, need to summarize")
+        #summarize every 3 messages
+        if previous_messages.__len__()>6:
+            return summarize(previous_messages,client,conversation_id)
         return previous_messages
     except Exception as e:
         print(str(e))
         return []
 
 #updates exiting conversation with new messages
-def insert_conversation(client, conversation_id, query, response):
+def update_conversation(client, conversation_id, query, response,summary):
     try:
         chat_collection = client[DB_NAME]['chat_history']
+        if summary is True:
+            chat_collection.delete_one({'conversation_id': conversation_id})
+            chat_history = {
+                    'conversation_id': conversation_id,
+                    'messages': [],
+                    'created_at': datetime.datetime.now()
+                }
+            chat_collection.insert_one(chat_history)
         chat_collection.update_one(
                         {'conversation_id': conversation_id},
                         {
@@ -387,18 +452,23 @@ def insert_conversation(client, conversation_id, query, response):
     except Exception as e:
         print(str(e))
 
-def generate_prompt(client,embedding_model,vector_index,query_text,prefilter,previous_messages):
-     try:
-        mongo_collection=client[DB_NAME][COLLECTION_NAME]
-        vector_store = MongoDBAtlasVectorSearch(
+
+def get_context_data(client,embedding_model,vector_index,query_text,prefilter):
+    mongo_collection=client[DB_NAME][COLLECTION_NAME]
+    vector_store = MongoDBAtlasVectorSearch(
                     collection=mongo_collection,
                     embedding=embedding_model,
                     index_name=vector_index,
                     relevance_score_fn="cosine",
                     text_key="page_content")
                 
-        retrieved_docs = vector_store.similarity_search_with_score(query=query_text, k=10,pre_filter={"object_ref":prefilter})
-        context_text = "\n\n---\n\n".join([doc.page_content for doc, _score in retrieved_docs])
+    retrieved_docs = vector_store.similarity_search_with_score(query=query_text, k=10,pre_filter={"object_ref":prefilter})
+    context_text = "\n\n---\n\n".join([doc.page_content for doc, _score in retrieved_docs])
+    return context_text
+
+def generate_prompt(client,embedding_model,vector_index,query_text,prefilter,previous_messages,):
+     try:
+        context_text = get_context_data(client,embedding_model,vector_index,query_text,prefilter)
         prompt_template = ChatPromptTemplate.from_template(PROMPT_TEMPLATE)
         prompt_text = prompt_template.format(prevMessages=previous_messages, context=context_text, question=query_text) 
         return prompt_text
@@ -421,7 +491,7 @@ def ask_ollama():
             if(prefilter=="dummy"):
                 response = ollama.chat(model=llm, messages=previous_messages+[{'role': 'user', 'content':query_text },]) #role can be  'user', 'assistant', 'system' or 'tool'
                 if response.done:
-                    insert_conversation(client, conversation_id, query_text, response.message.content)
+                    update_conversation(client, conversation_id, query_text, response.message.content,False)
                  
                     return jsonify({"response":response.message.content});
                 else:
@@ -444,7 +514,7 @@ def ask_ollama():
                 if(prompt_text is  None):
                     prompt_text="Error generating prompt retry"               
                 response=model.invoke(prompt_text)
-                insert_conversation(client, conversation_id, query_text, response)
+                update_conversation(client, conversation_id, query_text, response,False)
                 return jsonify({"response":response,"prompt":prompt_text})
           
         except Exception as e:
@@ -480,7 +550,7 @@ def ask_gpt35():
                     ]
                 )
                
-                insert_conversation(client, conversation_id, query_text, response.content)
+                update_conversation(client, conversation_id, query_text, response.content,False)
        
                 return jsonify({"response":response.content})
             else:
@@ -501,7 +571,7 @@ def ask_gpt35():
                     {"role": "system", "content": "You are a helpful assistant that answers questions based on provided context."},
                     {"role": "user", "content": prompt_text}
                     ])
-                insert_conversation(client, conversation_id, query_text, response.content)
+                update_conversation(client, conversation_id, query_text, response.content,False)
                 return jsonify({"response": response.content,"prompt":prompt_text})
 
         except Exception as e:
@@ -514,14 +584,141 @@ def ask_gpt35():
     return jsonify({"error": "No message provided"}), 400
 
 
+class State(TypedDict):
+    question: str
+    embedding_model:OllamaEmbeddings
+    prefilter:str
+    vector_index:str
+    answer: str
+    previous_messages: list
+    context: Annotated[list, operator.add]
+    prompt:str
+
+
+
+def search_web(state):
+    
+    """ Retrieve docs from web search """
+
+    # Search
+    tavily_search = TavilySearchResults(max_results=3)
+    search_docs = tavily_search.invoke(state['question'])
+
+     # Format
+    formatted_search_docs = "\n\n---\n\n".join(
+        [
+            f'<Document href="{doc["url"]}"/>\n{doc["content"]}\n</Document>'
+            for doc in search_docs
+        ]
+    )
+    # print(formatted_search_docs)
+    return {"context": [formatted_search_docs]} 
+
+def search_wikipedia(state):
+    
+    """ Retrieve docs from wikipedia """
+
+    # Search
+    search_docs = WikipediaLoader(query=state['question'], 
+                                  load_max_docs=2).load()
+
+     # Format
+    formatted_search_docs = "\n\n---\n\n".join(
+        [
+            f'<Document source="{doc.metadata["source"]}" page="{doc.metadata.get("page", "")}"/>\n{doc.page_content}\n</Document>'
+            for doc in search_docs
+        ]
+    )
+    # print(formatted_search_docs)
+    return {"context": [formatted_search_docs]} 
+
+def search_mongodb(state):
+    if(state["embedding_model"]==""):
+        return{"context":[]}
+    client=MongoClient(app.config['MONGODB_URI'],server_api=ServerApi('1'))
+    context=get_context_data(client,state["embedding_model"],state["vector_index"],state["question"],state["prefilter"])
+    return {"context": [context]}
+    
+
+def generate_answer(state):
+    llm = AzureChatOpenAI(
+    azure_endpoint=AZURE_OPENAI_ENDPOINT,
+    openai_api_key=AZURE_OPENAI_API_KEY,
+    openai_api_version=AZURE_OPENAI_API_VERSION,
+    temperature=0.7,
+    max_tokens=4096
+    )
+
+    AGENTIC_TEMPLATE= """Use the following context and previous messages to answer the question or summarize the conversation so far.
+
+- Only use the provided context to generate a response. If the required information is missing, state that you don’t know the answer instead of making one up.
+- Do not answer if the question is unrelated to the given context.
+- do not attempt to provide an answer beyond what is available in the context.
+- use relevant web information to give more accurate answer
+
+### Previous Messages:
+{prevMessages}
+
+### Context for the Answer:
+{context}
+
+------------------
+### Question:
+{question}
+
+------------------
+### Answer Format:
+- Provide a direct answer if the information is available in the context.
+- divide your answer into multiple points with sub headings if applicable
+- If the information is missing, state: "The provided context does not contain the required information."
+- If the question is unrelated, state: "This question is not relevant to the given context."
+- If suggesting resources, format as:  
+  - **External Sources:** \n Provide useful web links if available. Format as: "[Resource Name](URL)"  
+  - Example: "\n You may refer to [MongoDB Documentation](https://www.mongodb.com/docs/) for more details."
+"""
+
+    prompt_template = ChatPromptTemplate.from_template(AGENTIC_TEMPLATE)
+    prompt_text = prompt_template.format(prevMessages=state["previous_messages"], context=state["context"], question=state["question"]) 
+    if(prompt_text is  None):
+        prompt_text="Error generating prompt retry"     
+    answer =llm.invoke([SystemMessage(content=prompt_text)]+[HumanMessage(content=f"Answer the question.")])
+    return {"answer": answer.content,"prompt":prompt_text}
+    
+
+
+def build_graph():
+    # Add nodes
+    builder = StateGraph(State)
+
+
+    # Initialize each node with node_secret 
+
+    builder.add_node("search_web",search_web)
+    builder.add_node("search_wikipedia", search_wikipedia)
+    builder.add_node("search_mongodb", search_mongodb)
+    builder.add_node("generate_answer", generate_answer)
+
+    # Flow
+    builder.add_edge(START, "search_wikipedia")
+    builder.add_edge(START, "search_web")
+    builder.add_edge(START, "search_mongodb")
+    builder.add_edge("search_wikipedia", "generate_answer")
+    builder.add_edge("search_web", "generate_answer")
+    builder.add_edge("search_mongodb", "generate_answer")
+    builder.add_edge("generate_answer", END)
+    graph = builder.compile()
+
+    display(Image(graph.get_graph().draw_mermaid_png()))
+    return graph
+
+
+
 
 @app.route('/ask/gpt-4.0', methods=['POST'])
 def ask_gpt4o():
     query_text = request.json.get('message')
     prefilter=request.json.get('selectedOption')
     isAgentic=request.json.get('isAgentic')
-    if isAgentic:
-        print("isAgentic is true")
     client = MongoClient(app.config['MONGODB_URI'], server_api=ServerApi('1'))
     llm = AzureChatOpenAI(
     azure_endpoint=AZURE_OPENAI_ENDPOINT,
@@ -533,15 +730,23 @@ def ask_gpt4o():
     conversation_id = request.json.get('sessionId')
     if query_text:
         try:
+            if isAgentic:
+                graph=build_graph()
             previous_messages=get_conversation(client, conversation_id)
             if(prefilter=="dummy"):
+                if isAgentic:
+                    response = graph.invoke({"question": query_text, "embedding_model":"","vector_index":"","prefilter":"","previous_messages":previous_messages})
+                    response.content = response["answer"]
+                else:
             # Call OpenAI's new chat-based API (using the correct model and chat completions)
-                response = llm.invoke(previous_messages+[
+                    response = llm.invoke(previous_messages+[
                     {"role": "system", "content": "You are a helpful assistant that answers questions based on provided context."},
                     {"role": "user", "content":query_text}
-                ])
-                insert_conversation(client, conversation_id, query_text, response.content)
+                    ])
+
+                update_conversation(client, conversation_id, query_text, response.content,False)
                 return jsonify({"response":response.content})
+            
             else:
                 # print(prefilter)
                 metadata=prefilter.split("/")
@@ -552,14 +757,19 @@ def ask_gpt4o():
                     embeddingModel="nomic-embed-text"
                     vector_index=app.config['NOM_VECTOR']
                 embedding_model = OllamaEmbeddings(model=embeddingModel)
-                prompt_text=generate_prompt(client,embedding_model,vector_index,query_text,prefilter,previous_messages)
-                if(prompt_text is  None):
-                    prompt_text="Error generating prompt retry"     
-                response = llm.invoke(input=[
-                    {"role": "system", "content": "You are a helpful assistant that answers questions based on provided context."},
-                    {"role": "user", "content": prompt_text}
-                    ])
-                insert_conversation(client, conversation_id, query_text, response.content)
+                if isAgentic:
+                    response = graph.invoke({"question": query_text, "embedding_model":embedding_model,"vector_index":vector_index,"prefilter":prefilter,"previous_messages":previous_messages})
+                    response.content = response["answer"]
+                    prompt_text=response["prompt"]
+                else:
+                    prompt_text=generate_prompt(client,embedding_model,vector_index,query_text,prefilter,previous_messages)
+                    if(prompt_text is  None):
+                        prompt_text="Error generating prompt retry"     
+                    response = llm.invoke(input=[
+                        {"role": "system", "content": "You are a helpful assistant that answers questions based on provided context."},
+                        {"role": "user", "content": prompt_text}
+                        ])
+                update_conversation(client, conversation_id, query_text, response.content,False)
                 return jsonify({"response": response.content,"prompt":prompt_text})
         except ClientError as e:
             error_code = e.response['Error']['Code']
@@ -591,7 +801,7 @@ def ask_deepSeek():
                                             accept="application/json", 
                                             contentType="application/json")
                 invoke_response["body"] = json.loads(invoke_response["body"].read().decode("utf-8"))
-                insert_conversation(client, conversation_id, query_text, invoke_response["body"]['generation'])
+                update_conversation(client, conversation_id, query_text, invoke_response["body"]['generation'],False)
                 return jsonify({"response":invoke_response["body"]['generation']})
             else:
                 metadata=prefilter.split("/")
@@ -610,7 +820,7 @@ def ask_deepSeek():
                                             accept="application/json", 
                                             contentType="application/json")
                 invoke_response["body"] = json.loads(invoke_response["body"].read().decode("utf-8"))
-                insert_conversation(client, conversation_id, query_text, invoke_response["body"]['generation'])
+                update_conversation(client, conversation_id, query_text, invoke_response["body"]['generation'],False)
                 return jsonify({"response": invoke_response["body"]['generation'],"prompt":prompt_text})
         except Exception as e:
             return jsonify({"error": str(e)}), 500
@@ -633,7 +843,7 @@ def ask_claudeSonnet():
             if(prefilter=="dummy"):
                     req_body =  json.dumps({
                         "anthropic_version": "bedrock-2023-05-31",
-                        "max_tokens": 300,
+                        "max_tokens": 3000,
                         "temperature": 0.7,
                         "messages": previous_messages + [
                         {"role": "user", "content": query_text}
@@ -641,7 +851,7 @@ def ask_claudeSonnet():
                         })
                     response = bedrock_runtime.invoke_model(modelId=model_id,body=req_body)
                     response= json.loads(response['body'].read())
-                    insert_conversation(client, conversation_id, query_text, response['content'][0]['text'])
+                    update_conversation(client, conversation_id, query_text, response['content'][0]['text'],False)
                     return jsonify({"response":response['content'][0]['text']})
             else:
                 metadata=prefilter.split("/")
@@ -658,7 +868,7 @@ def ask_claudeSonnet():
                     prompt_text="Error generating prompt retry"     
                 req_body =  json.dumps({
                         "anthropic_version": "bedrock-2023-05-31",
-                        "max_tokens": 300,
+                        "max_tokens": 3000,
                         "temperature": 0.7,
                         "messages": [
                             {"role": "user", "content": prompt_text}
@@ -666,7 +876,7 @@ def ask_claudeSonnet():
                         })
                 response = bedrock_runtime.invoke_model(modelId=model_id,body=req_body)
                 response= json.loads(response['body'].read())
-                insert_conversation(client, conversation_id, query_text, response['content'][0]['text'])
+                update_conversation(client, conversation_id, query_text, response['content'][0]['text'],False)
                 return jsonify({"response": response['content'][0]['text'],"prompt":prompt_text})
             
             
@@ -683,10 +893,20 @@ if __name__ == '__main__':
 
 
 
+    
+    
+                
+    # retrieved_docs = vector_store.similarity_search_with_score(query=query_text, k=10,pre_filter={"object_ref":prefilter})
 
 
 
-  
+
+
+            # # Define the custom prompt
+        # custom_prompt = PromptTemplate(
+        #     input_variables=["prevMessages","context", "question"],
+        #     template=PROMPT_TEMPLATE
+        # )
                 #     retriever =vector_store.as_retriever(
                 #          search_kwargs={
                 #                  'k': 10,
@@ -711,3 +931,29 @@ if __name__ == '__main__':
                 #     # Construct the generated prompt
                 #     generated_prompt = prompt_template.format(context=context, question=query_text)
                 #     return jsonify({"response":response['result'],"prompt":generated_prompt})
+
+
+        #   <!--Research Assistant tab -->
+        #          <div class="tab-pane fade" id="researchassitant" role="tabpanel" aria-labelledby="researchassitant">
+        #             <div class="chatbox">
+        #                 <br> <h2>Under Development</h2>
+        #                 <div id="chatContainer1" class="chat-container"></div>
+        #                 <div class="input-group mt-3">
+        #                 <br>
+                       
+        #                     <input type="text" id="userInput1" class="form-control" placeholder="Ask something..." aria-label="User Input" required>
+        #                     <button class="btn btn-primary" id="sendMessageBtn1">Send</button>
+        #                 </div>
+        #                 <hr>
+        #             </div>
+        #             <div class="col-md-4" class="tab-pane fade"  role="tabpanel" aria-labelledby="chat-tab" >  
+        #                 <div id="prompt-container1" class="prompts-view-box" style="height: 300px; width: 740px;overflow-y: auto; padding: 10px; border-radius: 10px;">
+        #                 <h5 class="text-center mb-2">Prompt</h5>
+        #             </div>
+        #             </div>
+        #         </div>
+
+
+        #  <li class="nav-item" role="presentation">
+        #         <a class="nav-link" id="stats" data-bs-toggle="tab" href="#researchassitant" role="tab" aria-controls="researchassitant" aria-selected="false">Agentic Research Assistant</a>
+        #     </li>

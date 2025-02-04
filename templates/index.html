@@ -276,6 +276,18 @@
             border-top: 1px solid #ccc;
             margin: 10px 0;
           }
+
+          .responsive-img {
+            width: 50%; /* Adjust as needed */
+            max-width: 500px;
+            height: auto;
+            display: none; 
+            margin: auto;
+            border: 5px solid #333; /* Dark gray border */
+            border-radius: 10px; /* Rounded corners */
+            box-shadow: 3px 3px 10px rgba(0, 0, 0, 0.5); /* Adds a soft shadow */
+          }
+
     </style>
 </head>
 <body>
@@ -290,9 +302,6 @@
             </li>
             <li class="nav-item" role="presentation">
                 <a class="nav-link" id="chat-tab" data-bs-toggle="tab" href="#chatbot" role="tab" aria-controls="chatbot" aria-selected="false">Chatbot</a>
-            </li>
-            <li class="nav-item" role="presentation">
-                <a class="nav-link" id="stats" data-bs-toggle="tab" href="#researchassitant" role="tab" aria-controls="researchassitant" aria-selected="false">Agentic Research Assistant</a>
             </li>
             <li class="nav-item" role="presentation">
                 <a class="nav-link" id="stats" data-bs-toggle="tab" href="#analytics" role="tab" aria-controls="analytics" aria-selected="false">Stats</a>
@@ -356,25 +365,6 @@
                     src="https://charts.mongodb.com/charts-saiteja-rjhew/embed/dashboards?id=bb052772-8ca6-4875-950b-26c14d9c2aac&theme=dark&autoRefresh=true&maxDataAge=3600&showTitleAndDesc=true&scalingWidth=scale&scalingHeight=scale">
                 </iframe>
             </div>
-             <!--Research Assistant tab -->
-                 <div class="tab-pane fade" id="researchassitant" role="tabpanel" aria-labelledby="researchassitant">
-                    <div class="chatbox">
-                        <br> <h2>Under Development</h2>
-                        <div id="chatContainer1" class="chat-container"></div>
-                        <div class="input-group mt-3">
-                        <br>
-                       
-                            <input type="text" id="userInput1" class="form-control" placeholder="Ask something..." aria-label="User Input" required>
-                            <button class="btn btn-primary" id="sendMessageBtn1">Send</button>
-                        </div>
-                        <hr>
-                    </div>
-                    <div class="col-md-4" class="tab-pane fade"  role="tabpanel" aria-labelledby="chat-tab" >  
-                        <div id="prompt-container1" class="prompts-view-box" style="height: 300px; width: 740px;overflow-y: auto; padding: 10px; border-radius: 10px;">
-                        <h5 class="text-center mb-2">Prompt</h5>
-                    </div>
-                    </div>
-                </div>
 
             <!-- Chatbot Tab -->
             <div class="tab-pane fade" id="chatbot" role="tabpanel" aria-labelledby="chat-tab">
@@ -399,6 +389,7 @@
                         <label>
                             <input type="checkbox" id="agenticSelector" name="agenticCheckbox" value="agentic">
                            Agentic RAG (Multi-model with Web Agent , Wikipedia Agent & MongoDB Retriever)
+                           <img src="../static/images/langgraph.png" id="graphimg" alt="langgraph" title="langgraph" class="responsive-img">
                         </label>
                         <hr>
                         <label for="modelSelect" class="form-label">Select Foundation Model</label>
@@ -458,6 +449,7 @@
         const modelSelect = document.getElementById('modelSelect');
         const submitButton = document.getElementById('submitButton');
         const fileinput = document.getElementById("file");
+        const graph = document.getElementById("graphimg");
 
         sendMessageBtn.addEventListener('click', async function() {
             const userMessage = userInput.value;
@@ -667,8 +659,11 @@ async function callDeepseek(message,selectedOption,isAgentic,sessionId) {
     if (this.checked) {
         modelSelect.value = "gpt-4o";  // Set dropdown value to "gpt-4o"
         modelSelect.disabled = true;   // Disable the dropdown
+        graph.style.display = "block";
     } else {
-        modelSelect.disabled = false;  // Enable the dropdown when unchecked
+        modelSelect.disabled = false;
+        graph.style.display = "none"
+          // Enable the dropdown when unchecked
     }
 });
 
