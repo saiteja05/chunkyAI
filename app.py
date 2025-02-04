@@ -83,6 +83,7 @@ PROMPT_TEMPLATE= """Use the following context and previous messages to answer th
 - If suggesting resources, format as:  
   - **External Sources:** Provide useful web links if available. Format as: "[Resource Name](URL)"  
   - Example: "You may refer to [MongoDB Documentation](https://www.mongodb.com/docs/) for more details."
+- do not use markup in reply
 """
 
 
@@ -655,6 +656,7 @@ def generate_answer(state):
 - Do not answer if the question is unrelated to the given context.
 - do not attempt to provide an answer beyond what is available in the context.
 - use relevant web information to give more accurate answer
+- do not use markup in reply
 
 ### Previous Messages:
 {prevMessages}
