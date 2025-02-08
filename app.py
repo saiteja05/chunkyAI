@@ -19,8 +19,7 @@ from tenacity import (
 # from langchain.tools import Tool
 # from langchain.chains import RetrievalQA
 
-import datetime
-from datetime import date
+from datetime import datetime, date
 
 
 #for semantic chunking
@@ -148,7 +147,7 @@ def upload_form():
 
 
 def getCurTime():
-    return datetime.datetime.now()
+    return datetime.now()
 
 def load_documents(pdf_file_path):
     try:
@@ -262,25 +261,32 @@ def indextoMongoDB(data:list):
 def get_options():
     # Fetch unique values from MongoDB
     # print("entering get options")
-    pipeline = [
-        {
+    pipeline =[
+            {
             "$group": {
-                "_id": {
-                    "file_id": "$metadata.file_id",
-                    "embedding_model": "$metadata.embedding_model",
-                    "chunking_strategy": "$metadata.chunking_strategy"
-                }
+            "_id": {
+                "file_id": "$metadata.file_id",
+                "embedding_model": "$metadata.embedding_model",
+                "chunking_strategy": "$metadata.chunking_strategy"
+            }
             }
         },
         {
             "$project": {
-                "file_id": "$_id.file_id",
-                "embedding_model": "$_id.embedding_model",
-                "chunking_strategy": "$_id.chunking_strategy",
-                "_id": 0
+            "file_id": "$_id.file_id",
+            "embedding_model": "$_id.embedding_model",
+            "chunking_strategy": "$_id.chunking_strategy",
+            "_id": 0
+            }
+        },
+        {
+            "$sort": {
+            "file_id": 1,           
+            "embedding_model": 1,    
+            "chunking_strategy": 1    
             }
         }
-    ]
+        ]
     client=MongoClient(app.config['MONGODB_URI'],server_api=ServerApi('1'))
     try:
        
@@ -491,10 +497,10 @@ def writeElapsed(client,start_time,end_time,type,llm="None",prefilter=None):
     elapsed_time = (end_time - start_time).total_seconds()
     monitor_collection = client[DB_NAME][MONITOR_COLLECTION]
     if(prefilter is None):
-        monitor_collection.insert_one({"type":type,"elapsed_time":elapsed_time,"LLM":llm,"date":str(datetime.datetime.now().date()) }) 
+        monitor_collection.insert_one({"type":type,"elapsed_time":elapsed_time,"LLM":llm,"date":datetime.combine(datetime.now().date(), datetime.min.time())}) 
     else:
         details=prefilter.split("/")
-        monitor_collection.insert_one({"type":type,"elapsed_time":elapsed_time,"FILE_ID":details[0],"embedding_model":details[1],"chunking_strategy":details[2],"date":str(datetime.datetime.now().date())}) 
+        monitor_collection.insert_one({"type":type,"elapsed_time":elapsed_time,"LLM":llm,"FILE_ID":details[0],"embedding_model":details[1],"chunking_strategy":details[2],"date":datetime.combine(datetime.now().date(), datetime.min.time())}) 
     
 
 @app.route('/ask/ollama', methods=['POST'])
