@@ -20,6 +20,7 @@ from tenacity import (
 # from langchain.chains import RetrievalQA
 
 import datetime
+from datetime import date
 
 
 #for semantic chunking
@@ -64,6 +65,7 @@ PROMPT_TEMPLATE= """Use the following context and previous messages to answer th
 - Do not answer if the question is unrelated to the given context.
 - If applicable, you may suggest external resources but do not attempt to provide an answer beyond what is available in the context.
 - If relevant, provide web links to external sources where the user can find more information.
+- do not use markup style formatting in reply
 
 ### Previous Messages:
 {prevMessages}
@@ -99,6 +101,7 @@ app.config['TESTING'] = False
 app.config.from_object(Configuration)
 DB_NAME=app.config['DB_NAME']
 COLLECTION_NAME=app.config['COLLECTION_NAME']
+MONITOR_COLLECTION=app.config['MONITORING_COLLECTION']
 
 #open ai variables
 openai_client = OpenAI(api_key=app.config['OPEN_AI_KEY'])
@@ -144,6 +147,8 @@ def upload_form():
     return render_template('index.html')
 
 
+def getCurTime():
+    return datetime.datetime.now()
 
 def load_documents(pdf_file_path):
     try:
@@ -389,10 +394,13 @@ def summarize(previous_messages,client,conversation_id):
          """
         prompt_template = ChatPromptTemplate.from_template(prompt)
         prompt_text = prompt_template.format(prevMessages=previous_messages)
+        start_time=getCurTime()
         response = llm.invoke(input=[
                     {"role": "system", "content": "You are a helpful assistant that answers questions based on provided context."},
                     {"role": "user", "content": prompt_text}
                     ])
+        end_time=getCurTime()
+        writeElapsed(client=client,start_time=start_time,end_time=end_time,type="Summarization",llm="GPT4O")
         update_conversation(client, conversation_id, "summary of the conversation thus far", response.content,True)
         return get_conversation(client, conversation_id)
         
@@ -409,7 +417,7 @@ def get_conversation(client, conversation_id):
             chat_history = {
                     'conversation_id': conversation_id,
                     'messages': [],
-                    'created_at': datetime.datetime.now()
+                    'created_at': getCurTime()
                 }
             chat_collection.insert_one(chat_history)
             
@@ -418,7 +426,7 @@ def get_conversation(client, conversation_id):
             for msg in chat_history.get('messages', [])
             ]
         #summarize every 3 messages
-        if previous_messages.__len__()>6:
+        if previous_messages.__len__()>=6:
             return summarize(previous_messages,client,conversation_id)
         return previous_messages
     except Exception as e:
@@ -434,7 +442,7 @@ def update_conversation(client, conversation_id, query, response,summary):
             chat_history = {
                     'conversation_id': conversation_id,
                     'messages': [],
-                    'created_at': datetime.datetime.now()
+                    'created_at': getCurTime()
                 }
             chat_collection.insert_one(chat_history)
         chat_collection.update_one(
@@ -469,14 +477,25 @@ def get_context_data(client,embedding_model,vector_index,query_text,prefilter):
 
 def generate_prompt(client,embedding_model,vector_index,query_text,prefilter,previous_messages,):
      try:
+        start_time = getCurTime()
         context_text = get_context_data(client,embedding_model,vector_index,query_text,prefilter)
+        end_time= getCurTime()
+        writeElapsed(client=client,start_time=start_time,end_time=end_time,type="vectorSearch",prefilter=prefilter)
         prompt_template = ChatPromptTemplate.from_template(PROMPT_TEMPLATE)
         prompt_text = prompt_template.format(prevMessages=previous_messages, context=context_text, question=query_text) 
         return prompt_text
      except Exception as e:
         print(str(e))
         return None     
-
+def writeElapsed(client,start_time,end_time,type,llm="None",prefilter=None):
+    elapsed_time = (end_time - start_time).total_seconds()
+    monitor_collection = client[DB_NAME][MONITOR_COLLECTION]
+    if(prefilter is None):
+        monitor_collection.insert_one({"type":type,"elapsed_time":elapsed_time,"LLM":llm,"date":str(datetime.datetime.now().date()) }) 
+    else:
+        details=prefilter.split("/")
+        monitor_collection.insert_one({"type":type,"elapsed_time":elapsed_time,"FILE_ID":details[0],"embedding_model":details[1],"chunking_strategy":details[2],"date":str(datetime.datetime.now().date())}) 
+    
 
 @app.route('/ask/ollama', methods=['POST'])
 def ask_ollama():
@@ -490,7 +509,10 @@ def ask_ollama():
         try:
             previous_messages=get_conversation(client, conversation_id)
             if(prefilter=="dummy"):
+                start_time = getCurTime()
                 response = ollama.chat(model=llm, messages=previous_messages+[{'role': 'user', 'content':query_text },]) #role can be  'user', 'assistant', 'system' or 'tool'
+                end_time = getCurTime()
+                writeElapsed(client=client,start_time=start_time,end_time=end_time,type="LLMQuery",llm="Llama3")
                 if response.done:
                     update_conversation(client, conversation_id, query_text, response.message.content,False)
                  
@@ -513,8 +535,11 @@ def ask_ollama():
                 prompt_text=generate_prompt(client,embedding_model,vector_index,query_text,prefilter,previous_messages)
 
                 if(prompt_text is  None):
-                    prompt_text="Error generating prompt retry"               
+                    prompt_text="Error generating prompt retry"
+                start_time = getCurTime()             
                 response=model.invoke(prompt_text)
+                end_time = getCurTime()
+                writeElapsed(client=client,start_time=start_time,end_time=end_time,type="LLMQuery",llm="Llama3",prefilter=prefilter)
                 update_conversation(client, conversation_id, query_text, response,False)
                 return jsonify({"response":response,"prompt":prompt_text})
           
@@ -545,11 +570,16 @@ def ask_gpt35():
         try:
             previous_messages=get_conversation(client, conversation_id)
             if(prefilter=="dummy"):
+                
+                start_time=getCurTime()
                 response = llm.invoke(previous_messages+[
                         {"role": "system", "content": "you are a helpful chatbot"},
                         {"role": "user", "content": query_text},
                     ]
                 )
+                end_time = getCurTime()
+                writeElapsed(client=client,start_time=start_time,end_time=end_time,type="LLMQuery",llm="GPT3.5")
+
                
                 update_conversation(client, conversation_id, query_text, response.content,False)
        
@@ -567,11 +597,14 @@ def ask_gpt35():
                 prompt_text=generate_prompt(client,embedding_model,vector_index,query_text,prefilter,previous_messages)
 
                 if(prompt_text is  None):
-                    prompt_text="Error generating prompt retry"     
+                    prompt_text="Error generating prompt retry"    
+                start_time=getCurTime() 
                 response = llm.invoke(input=[
                     {"role": "system", "content": "You are a helpful assistant that answers questions based on provided context."},
                     {"role": "user", "content": prompt_text}
                     ])
+                end_time = getCurTime()
+                writeElapsed(client=client,start_time=start_time,end_time=end_time,type="LLMQuery",llm="GPT3.5",prefilter=prefilter)
                 update_conversation(client, conversation_id, query_text, response.content,False)
                 return jsonify({"response": response.content,"prompt":prompt_text})
 
@@ -642,49 +675,62 @@ def search_mongodb(state):
     
 
 def generate_answer(state):
-    llm = AzureChatOpenAI(
-    azure_endpoint=AZURE_OPENAI_ENDPOINT,
-    openai_api_key=AZURE_OPENAI_API_KEY,
-    openai_api_version=AZURE_OPENAI_API_VERSION,
-    temperature=0.7,
-    max_tokens=4096
-    )
+    try:
+        llm = AzureChatOpenAI(
+        azure_endpoint=AZURE_OPENAI_ENDPOINT,
+        openai_api_key=AZURE_OPENAI_API_KEY,
+        openai_api_version=AZURE_OPENAI_API_VERSION,
+        temperature=0.7,
+        max_tokens=4096
+        )
 
-    AGENTIC_TEMPLATE= """Use the following context and previous messages to answer the question or summarize the conversation so far.
+        AGENTIC_TEMPLATE= """Use the following information and previous messages for memory to answer the question or summarize the conversation so far.
 
-- Only use the provided context to generate a response. If the required information is missing, state that you don’t know the answer instead of making one up.
-- Do not answer if the question is unrelated to the given context.
-- do not attempt to provide an answer beyond what is available in the context.
-- use relevant web information to give more accurate answer
-- do not use markup in reply
+    - use the provided information to generate a reasonable response. If the required information is missing, state that you don’t know the answer instead of making one up.
+    - Do not answer if the question is unrelated to the given context.
+    - do not attempt to provide an answer completely unrelated to the information provided.
+    - use additional information you are trained on to give more accurate answer
+    - do not use markup style formatting in reply
 
-### Previous Messages:
-{prevMessages}
+    ### Previous Messages:
+    {prevMessages}
 
-### Context for the Answer:
-{context}
+    ### Information for the Answer:
+    {context}
 
-------------------
-### Question:
-{question}
+    ------------------
+    ### Question:
+    {question}
 
-------------------
-### Answer Format:
-- Provide a direct answer if the information is available in the context.
-- divide your answer into multiple points with sub headings if applicable
-- If the information is missing, state: "The provided context does not contain the required information."
-- If the question is unrelated, state: "This question is not relevant to the given context."
-- If suggesting resources, format as:  
-  - **External Sources:** \n Provide useful web links if available. Format as: "[Resource Name](URL)"  
-  - Example: "\n You may refer to [MongoDB Documentation](https://www.mongodb.com/docs/) for more details."
-"""
-
-    prompt_template = ChatPromptTemplate.from_template(AGENTIC_TEMPLATE)
-    prompt_text = prompt_template.format(prevMessages=state["previous_messages"], context=state["context"], question=state["question"]) 
-    if(prompt_text is  None):
-        prompt_text="Error generating prompt retry"     
-    answer =llm.invoke([SystemMessage(content=prompt_text)]+[HumanMessage(content=f"Answer the question.")])
-    return {"answer": answer.content,"prompt":prompt_text}
+    ------------------
+    ### Answer Format:
+    - Provide a direct answer if the information is available in the context.
+    - divide your answer into multiple points with sub headings if applicable
+    - If the information is missing, state: "The provided context does not contain the required information."
+    - If the question is unrelated, state: "This question is not relevant to the given context."
+    - If suggesting resources, format as:  
+    - **External Sources:** \n Provide useful web links if available. Format as: "[Resource Name](URL)"  
+    - Example: "\n You may refer to [MongoDB Documentation](https://www.mongodb.com/docs/) for more details."
+    """
+        
+        prompt_template = ChatPromptTemplate.from_template(AGENTIC_TEMPLATE)
+        prompt_text = prompt_template.format(prevMessages=state["previous_messages"], context=state["context"], question=state["question"]) 
+        if(prompt_text is  None):
+            prompt_text="Error generating prompt retry"
+        start_time=getCurTime()     
+        answer =llm.invoke([SystemMessage(content=prompt_text)]+[HumanMessage(content=f"Answer the question.")])
+        end_time=getCurTime()
+        client=MongoClient(app.config['MONGODB_URI'], server_api=ServerApi('1'))
+        if state["embedding_model"]=="":
+            writeElapsed(client=client,start_time=start_time,end_time=end_time,type="LLMQuery",llm="AgenticGPT4O")
+        else:
+            writeElapsed(client=client,start_time=start_time,end_time=end_time,type="LLMQuery",llm="AgenticGPT4O",prefilter=state["prefilter"])
+        return {"answer": answer.content,"prompt":prompt_text}
+    except Exception as e:
+        print(str(e))
+    finally:
+        client.close()
+        
     
 
 
@@ -741,10 +787,13 @@ def ask_gpt4o():
                     response.content = response["answer"]
                 else:
             # Call OpenAI's new chat-based API (using the correct model and chat completions)
+                    start_time=getCurTime()
                     response = llm.invoke(previous_messages+[
                     {"role": "system", "content": "You are a helpful assistant that answers questions based on provided context."},
                     {"role": "user", "content":query_text}
                     ])
+                    end_time = getCurTime()
+                    writeElapsed(client=client,llm="GPT4O",start_time=start_time,end_time=end_time,type="LLMQuery")
 
                 update_conversation(client, conversation_id, query_text, response.content,False)
                 return jsonify({"response":response.content})
@@ -767,10 +816,13 @@ def ask_gpt4o():
                     prompt_text=generate_prompt(client,embedding_model,vector_index,query_text,prefilter,previous_messages)
                     if(prompt_text is  None):
                         prompt_text="Error generating prompt retry"     
+                    start_time=getCurTime
                     response = llm.invoke(input=[
                         {"role": "system", "content": "You are a helpful assistant that answers questions based on provided context."},
                         {"role": "user", "content": prompt_text}
                         ])
+                    end_time=getCurTime()
+                    writeElapsed(client=client,start_time=start_time,end_time=end_time,type="LLMQuery",llm="GPT4O",prefilter=prefilter)
                 update_conversation(client, conversation_id, query_text, response.content,False)
                 return jsonify({"response": response.content,"prompt":prompt_text})
         except ClientError as e:
@@ -798,10 +850,13 @@ def ask_deepSeek():
         try:
             previous_messages=get_conversation(client, conversation_id)
             if(prefilter=="dummy"):
+                start_time=getCurTime() 
                 invoke_response = bedrock_runtime.invoke_model(modelId=MODEL_ID, 
                                             body=json.dumps({'prompt': query_text}), 
                                             accept="application/json", 
                                             contentType="application/json")
+                end_time=getCurTime()
+                writeElapsed(client=client,start_time=start_time,end_time=end_time,type="LLMQuery",llm="DeepSeekR1")
                 invoke_response["body"] = json.loads(invoke_response["body"].read().decode("utf-8"))
                 update_conversation(client, conversation_id, query_text, invoke_response["body"]['generation'],False)
                 return jsonify({"response":invoke_response["body"]['generation']})
@@ -816,12 +871,16 @@ def ask_deepSeek():
                 embedding_model = OllamaEmbeddings(model=embeddingModel)
                 prompt_text=generate_prompt(client,embedding_model,vector_index,query_text,prefilter,previous_messages)
                 if(prompt_text is  None):
-                    prompt_text="Error generating prompt retry"     
+                    prompt_text="Error generating prompt retry"
+                start_time=getCurTime()
                 invoke_response = bedrock_runtime.invoke_model(modelId=MODEL_ID, 
                                             body=json.dumps({'prompt': prompt_text}), 
                                             accept="application/json", 
                                             contentType="application/json")
+                end_time=getCurTime()
+                writeElapsed(client=client,start_time=start_time,end_time=end_time,type="LLMQuery",llm="DeepSeekR1",prefilter=prefilter)
                 invoke_response["body"] = json.loads(invoke_response["body"].read().decode("utf-8"))
+
                 update_conversation(client, conversation_id, query_text, invoke_response["body"]['generation'],False)
                 return jsonify({"response": invoke_response["body"]['generation'],"prompt":prompt_text})
         except Exception as e:
@@ -851,7 +910,10 @@ def ask_claudeSonnet():
                         {"role": "user", "content": query_text}
                     ]
                         })
+                    start_time=getCurTime()
                     response = bedrock_runtime.invoke_model(modelId=model_id,body=req_body)
+                    end_time=getCurTime()
+                    writeElapsed(client=client,start_time=start_time,end_time=end_time,type="LLMQuery",llm="ClaudeSonnet3.5V1")
                     response= json.loads(response['body'].read())
                     update_conversation(client, conversation_id, query_text, response['content'][0]['text'],False)
                     return jsonify({"response":response['content'][0]['text']})
@@ -876,7 +938,10 @@ def ask_claudeSonnet():
                             {"role": "user", "content": prompt_text}
                         ]
                         })
+                start_time=getCurTime()
                 response = bedrock_runtime.invoke_model(modelId=model_id,body=req_body)
+                end_time=getCurTime()
+                writeElapsed(client=client,start_time=start_time,end_time=end_time,type="LLMQuery",llm="ClaudeSonnet3.5V1",prefilter=prefilter)
                 response= json.loads(response['body'].read())
                 update_conversation(client, conversation_id, query_text, response['content'][0]['text'],False)
                 return jsonify({"response": response['content'][0]['text'],"prompt":prompt_text})
