@@ -244,14 +244,14 @@
             align-self: flex-end; /* Align user messages to the right */
             background-color: #3c3d3c; /* Light green for user messages */
             color: rgb(232, 225, 225);
-            overflow-y: auto; /* Scrollable if messages exceed container height */
+         /* Scrollable if messages exceed container height */
           }
         
           .ai-message {
             align-self: flex-start; /* Align AI messages to the left */
             background-color: #3c3d3c; /* Light grey for AI messages */
             color: rgb(233, 225, 225);
-            overflow-y: auto; /* Scrollable if messages exceed container height */
+            /*overflow-y: auto; Scrollable if messages exceed container height */
           }
         
           #chatContainer {
@@ -266,6 +266,7 @@
             color: rgb(33, 120, 46);
             height: 400px;
             overflow-y: auto; /* Scrollable if messages exceed container height */
+            border-color: var(--accent-green);
           }
         
           /* Styling for separator (optional) */
@@ -289,6 +290,7 @@
     </style>
 </head>
 <body>
+    
     <div class="container">
         <div style="display: flex; justify-content: center;">
             <a href="javascript:location.reload()"><img src="../static/images/logo.png" alt="ChunkyAI" id="logo"></a>
@@ -409,6 +411,7 @@
                     <h5 class="text-center mb-2">Prompt</h5>
                 </div>
                 </div>
+                <div id="error-message" style="color: red; font-weight: bold;"></div>
             </div>
         </div>
     </div>
@@ -448,77 +451,79 @@
         const submitButton = document.getElementById('submitButton');
         const fileinput = document.getElementById("file");
         const graph = document.getElementById("graphimg");
+        const errorDiv = document.getElementById("error-message");
 
-        sendMessageBtn.addEventListener('click', async function() {
-            const userMessage = userInput.value;
+        sendMessageBtn.addEventListener('click', async function () {
+            const userMessage = userInput.value.trim();
             sendMessageBtn.disabled = true;
             userInput.disabled = true;
+        
+            // Get error div and clear previous errors
             
-            if (userMessage.trim() !== "") {
-                chatContainer.innerHTML += `<div class="user-message">
-                    <i>${userMessage}</i>
-                    </div>`;
-
+            errorDiv.innerHTML = "";
+        
+            if (userMessage !== "") {
+                chatContainer.innerHTML += `<div class="user-message"><i>${userMessage}</i></div>`;
+        
                 const selectedModel = modelSelect.value;
                 const dropdown = document.getElementById('mongoDropdown');
                 const selectedOption = dropdown.value;
                 const agenticCheckbox = document.getElementById('agenticSelector');
-         
                 const currentPromptList = document.getElementById('prompt-container');
                 currentPromptList.innerHTML = '';
-
-                let data;
-                if (selectedModel === "ollama") {
-                    data = await callOllama(userMessage, selectedOption, agenticCheckbox.checked,sessionId);
-                } else if (selectedModel === "gpt-3.5") {
-                    data = await callGPT(userMessage, selectedOption, agenticCheckbox.checked,sessionId);
-                }else if (selectedModel === "claude35") {
-                    data = await callClaude(userMessage, selectedOption, agenticCheckbox.checked,sessionId);
-                }
-                else if (selectedModel === "deepseek") {
-                    data = await callDeepseek(userMessage, selectedOption, agenticCheckbox.checked,sessionId);
-                }
-                else {
-                    data = await callGPT4o(userMessage, selectedOption, agenticCheckbox.checked,sessionId);
-                }
-
-                if (data) {
-                    chatContainer.innerHTML += `<div class="ai-message"><strong style="color: var(--accent-green)">AI:</strong> ${data.response.replace(/\n/g, "<br>").replace(/\*\*(.*?)\*\*/g, "<b>$1</b>").replace(/\[([^\]]+)\]/g, "<br><b>$1</b>")}</div>` ;
-
-               } else {
-                chatContainer.innerHTML += `<div  class="ai-message" style="color: red;"<strong>Error:</strong><i>Something went wrong.</i></div>`;
-            }
-            
-            let prompt=data.prompt;
-            if(selectedOption == 'dummy'){
-             currentPromptList.innerHTML=`<div  style="color:white;"><strong style="color:orange;">Prompt:<br></strong><i>${userMessage}</i></div>`;
-             }
-             else
-             {
-                 currentPromptList.innerHTML=`<div   style="color:white;">><i><strong style="color:orange;">Prompt:<br></strong><i>${prompt.replace(/\n/g, "<br>").replace(/\*\*(.*?)\*\*/g, "<b>$1</b>")}</i></div>`;
-             }
-            
-
-           
-
-            // Clear the input field
-            userInput.value = "";
-            chatContainer.scrollTop = chatContainer.scrollHeight;
-           
-        }
-        else
-        {
-         
-       
         
-        chatContainer.innerHTML += `<div style="color: orange;"<strong>Alert:</strong><i>Need to enter query to proceed</i></div>`;
-        chatContainer.scrollTop = chatContainer.scrollHeight;
-        }
-
-        sendMessageBtn.disabled = false;
-        userInput.disabled=false;
-        sendMessageBtn.textContent = 'Send';
-    });
+                let data;
+        
+                try {
+                    if (selectedModel === "ollama") {
+                        data = await callOllama(userMessage, selectedOption, agenticCheckbox.checked, sessionId);
+                    } else if (selectedModel === "gpt-3.5") {
+                        data = await callGPT(userMessage, selectedOption, agenticCheckbox.checked, sessionId);
+                    } else if (selectedModel === "claude35") {
+                        data = await callClaude(userMessage, selectedOption, agenticCheckbox.checked, sessionId);
+                    } else if (selectedModel === "deepseek") {
+                        data = await callDeepseek(userMessage, selectedOption, agenticCheckbox.checked, sessionId);
+                    } else {
+                        data = await callGPT4o(userMessage, selectedOption, agenticCheckbox.checked, sessionId);
+                    }
+        
+                    // **Error Handling: If API returns an error**
+                    if (data.error) {
+                        throw new Error(data.message);
+                    }
+        
+                    // **Display AI response**
+                    chatContainer.innerHTML += `
+                        <div class="ai-message">
+                            <strong style="color: var(--accent-green)">AI:</strong> 
+                            ${data.response.replace(/\n/g, "<br>").replace(/\*\*(.*?)\*\*/g, "<b>$1</b>").replace(/$begin:math:display$([^$end:math:display$]+)\]/g, "<br><b>$1</b>")}
+                        </div>
+                    `;
+        
+                } catch (error) {
+                    // **Show the error message in error-div**
+                    errorDiv.innerHTML = `<strong style="color: red;">Error: ${error.message}</strong>`;
+                }
+        
+                // **Show Prompt if applicable**
+                if (data && data.prompt) {
+                    currentPromptList.innerHTML = `
+                        <div style="color:white;">
+                            <strong style="color:orange;">Prompt:<br></strong>
+                            <i>${data.prompt.replace(/\n/g, "<br>").replace(/\*\*(.*?)\*\*/g, "<b>$1</b>")}</i>
+                        </div>
+                    `;
+                }
+        
+            } else {
+                chatContainer.innerHTML += `<div style="color: orange;"><strong>Alert:</strong> <i>Enter a query to proceed</i></div>`;
+            }
+        
+            sendMessageBtn.disabled = false;
+            userInput.disabled = false;
+            userInput.value="";
+            sendMessageBtn.textContent = 'Send';
+        });
 
 
     // Function to call Ollama API
@@ -526,27 +531,40 @@
         try {
             const response = await fetch('/ask/ollama', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                 message: message,
-                 selectedOption: selectedOption,
-                 isAgentic: isAgentic // Send the selected option along with the message
-                 ,sessionId: sessionId
-             })
+                    message: message,
+                    selectedOption: selectedOption,
+                    isAgentic: isAgentic,
+                    sessionId: sessionId
+                })
             });
-
-            //response.rules.replace(/\n/g, "<br>").replace(/\*\*(.*?)\*\*/g, "<b>$1</b>")
-
-            const data = await response.json()
-            //console.log(data);
-            return data|| "No response from Ollama";
-        } catch (error) {
-            console.error('Error calling Ollama:', error);
-            return "Error communicating with Ollama";
+    
+           // Check if the response is not OK (e.g., 404, 500 errors)
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({})); // Try to extract error details
+            // Customize your error message based on the status code
+            throw new Error(errorData.message || `Failed to call Ollama API, please retry a different llm perhaps. HTTP Error ${response.status}: ${response.statusText}`);
         }
+
+        const data = await response.json();
+
+        // If data is not returned as expected, add custom error message
+        if (!data || !data.response) {
+            throw new Error("Ollama API returned an empty or invalid response.");
+        }
+
+        return data;  // Success, return the data
+
+    } catch (error) {
+        // Return an error object with a custom message and the caught error's message
+        return {
+            error: true,
+            message: error.message || "An unknown error occurred while calling Ollama."
+        };
     }
+    }
+    
 
     // Function to call GPT-3.5 API
     async function callGPT(message,selectedOption,isAgentic,session) {
@@ -563,14 +581,29 @@
                  ,sessionId: sessionId
              })
             });
+     // Check if the response is not OK (e.g., 404, 500 errors)
+     if (!response.ok) {
+        const errorData = await response.json().catch(() => ({})); // Try to extract error details
+        // Customize your error message based on the status code
+        throw new Error(errorData.message || `Failed to call OpenAI GPT3.5 API, please retry a different llm perhaps. HTTP Error ${response.status}: ${response.statusText}`);
+    }
 
-            const data = await response.json();
-            
-            return data|| "No response from GPT-3.5";
-        } catch (error) {
-            console.error('Error calling GPT-3.5:', error);
-            return "Error communicating with GPT-3.5";
-        }
+    const data = await response.json();
+
+    // If data is not returned as expected, add custom error message
+    if (!data || !data.response) {
+        throw new Error("OpenAI GPT3.5 API returned an empty or invalid response.");
+    }
+
+    return data;  // Success, return the data
+
+} catch (error) {
+    // Return an error object with a custom message and the caught error's message
+    return {
+        error: true,
+        message: error.message || "An unknown error occurred while calling OpennAI GPT3.5."
+    };
+}
     }
 
 // Function to call Deepseek API
@@ -588,14 +621,29 @@ async function callDeepseek(message,selectedOption,isAgentic,sessionId) {
              ,sessionId: sessionId
          })
         });
-
-        const data = await response.json();
-        
-        return data|| "No response from DeepSeekR1";
-    } catch (error) {
-        console.error('Error calling DeepSeekR1:', error);
-        return "Error communicating with DeepSeekR1";
+     // Check if the response is not OK (e.g., 404, 500 errors)
+     if (!response.ok) {
+        const errorData = await response.json().catch(() => ({})); // Try to extract error details
+        // Customize your error message based on the status code
+        throw new Error(errorData.message || `Failed to call DeepSeekR1 API, please retry a different llm perhaps. HTTP Error ${response.status}: ${response.statusText}`);
     }
+
+    const data = await response.json();
+
+    // If data is not returned as expected, add custom error message
+    if (!data || !data.response) {
+        throw new Error("DeepSeekR1 API returned an empty or invalid response.");
+    }
+
+    return data;  // Success, return the data
+
+} catch (error) {
+    // Return an error object with a custom message and the caught error's message
+    return {
+        error: true,
+        message: error.message || "An unknown error occurred while calling DeepSeekR1."
+    };
+}
  }
 
 // Function to call claude API
@@ -614,13 +662,29 @@ async function callDeepseek(message,selectedOption,isAgentic,sessionId) {
          })
         });
 
-        const data = await response.json();
-        
-        return data|| "No response from Anthropic";
-    } catch (error) {
-        console.error('Error calling Anthropic:', error);
-        return "Error communicating with Anthropic";
-    }
+  // Check if the response is not OK (e.g., 404, 500 errors)
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({})); // Try to extract error details
+    // Customize your error message based on the status code
+    throw new Error(errorData.message || `Failed to call Anthropic API, please retry a different llm perhaps. HTTP Error ${response.status}: ${response.statusText}`);
+}
+
+const data = await response.json();
+
+// If data is not returned as expected, add custom error message
+if (!data || !data.response) {
+    throw new Error("Anthropic API returned an empty or invalid response.");
+}
+
+return data;  // Success, return the data
+
+} catch (error) {
+// Return an error object with a custom message and the caught error's message
+return {
+    error: true,
+    message: error.message || "An unknown error occurred while calling Anthropic."
+};
+ }
  }
 
 
@@ -640,14 +704,30 @@ async function callDeepseek(message,selectedOption,isAgentic,sessionId) {
          })
         });
 
-        const data = await response.json();
-        
-        return data|| "No response from GPT-4.0";
-    } catch (error) {
-        console.error('Error calling GPT-4.0:', error);
-        return "Error communicating with GPT-4.0";
-    }
+   // Check if the response is not OK (e.g., 404, 500 errors)
+   if (!response.ok) {
+    const errorData = await response.json().catch(() => ({})); // Try to extract error details
+    // Customize your error message based on the status code
+    throw new Error(errorData.message || `Failed to call OpenAI Gpt4O API, please retry a different llm perhaps. HTTP Error ${response.status}: ${response.statusText}`);
+}
+
+const data = await response.json();
+
+// If data is not returned as expected, add custom error message
+if (!data || !data.response) {
+    throw new Error("OpenAI Gpt4O API returned an empty or invalid response.");
+}
+
+return data;  // Success, return the data
+
+} catch (error) {
+// Return an error object with a custom message and the caught error's message
+return {
+    error: true,
+    message: error.message || "An unknown error occurred while calling Gpt4o."
+};
  }
+}
 
  //agentic enabler
 
@@ -708,7 +788,25 @@ async function callDeepseek(message,selectedOption,isAgentic,sessionId) {
          });
  };
 
+ 
+ window.onunhandledrejection = function (event) {
+    console.error("Unhandled Promise Rejection:", event.reason);
 
+    // Find error-message div
+    let errorDiv = document.getElementById("error-message");
+    
+    if (errorDiv) {
+        errorDiv.innerText = `Error: ${event.reason}`;
+    } else {
+        // If not found, create it dynamically
+        errorDiv = document.createElement("div");
+        errorDiv.id = "error-message";
+        errorDiv.style.color = "red";
+        errorDiv.style.fontWeight = "bold";
+        errorDiv.innerText = `Error: ${event.reason}`;
+        document.body.appendChild(errorDiv);
+    }
+};
 
     
 

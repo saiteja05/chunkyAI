@@ -65,19 +65,23 @@ PROMPT_TEMPLATE= """Use the following context and previous messages to answer th
 - If applicable, you may suggest external resources but do not attempt to provide an answer beyond what is available in the context.
 - If relevant, provide web links to external sources where the user can find more information.
 - do not use markup style formatting in reply
+-if it is just a greeting (ex : hi, hello etc) or salutaion (bye,thankyou etc) - answer with a greeting or salutation forget the context
 
-### Previous Messages:
+Previous Messages to maintain the continuity of conversation:
 {prevMessages}
 
-### Context for the Answer:
+Context for generating the Answer:
 {context}
 
+
+
+
 ------------------
-### Question:
+Question:
 {question}
 
 ------------------
-### Answer Format:
+Answer Format:
 - Provide a direct answer if the information is available in the context.
 - If the information is missing, state: "The provided context does not contain the required information."
 - If the question is unrelated, state: "This question is not relevant to the given context."
@@ -516,7 +520,7 @@ def ask_ollama():
             previous_messages=get_conversation(client, conversation_id)
             if(prefilter=="dummy"):
                 start_time = getCurTime()
-                response = ollama.chat(model=llm, messages=previous_messages+[{'role': 'user', 'content':query_text },]) #role can be  'user', 'assistant', 'system' or 'tool'
+                response = ollama.chat(model=llm, messages=previous_messages+[{'role': 'user', 'content':query_text,'temperature':0.7 }]) #role can be  'user', 'assistant', 'system' or 'tool'
                 end_time = getCurTime()
                 writeElapsed(client=client,start_time=start_time,end_time=end_time,type="LLMQuery",llm="Llama3")
                 if response.done:
@@ -697,19 +701,21 @@ def generate_answer(state):
     - do not attempt to provide an answer completely unrelated to the information provided.
     - use additional information you are trained on to give more accurate answer
     - do not use markup style formatting in reply
+    -if it is just a greeting (ex : hi, hello etc) or salutaion (bye,thankyou etc) - answer with a greeting or salutation forget the information below
 
-    ### Previous Messages:
+
+   Previous Messages:
     {prevMessages}
 
-    ### Information for the Answer:
+   Information for the Answer:
     {context}
 
     ------------------
-    ### Question:
+    Question:
     {question}
 
     ------------------
-    ### Answer Format:
+  Answer Format:
     - Provide a direct answer if the information is available in the context.
     - divide your answer into multiple points with sub headings if applicable
     - If the information is missing, state: "The provided context does not contain the required information."
@@ -822,13 +828,16 @@ def ask_gpt4o():
                     prompt_text=generate_prompt(client,embedding_model,vector_index,query_text,prefilter,previous_messages)
                     if(prompt_text is  None):
                         prompt_text="Error generating prompt retry"     
-                    start_time=getCurTime
+                    start_time=getCurTime()
                     response = llm.invoke(input=[
                         {"role": "system", "content": "You are a helpful assistant that answers questions based on provided context."},
                         {"role": "user", "content": prompt_text}
                         ])
                     end_time=getCurTime()
+                    print("sending to insert")
+                    # print((end_time - start_time).total_seconds())
                     writeElapsed(client=client,start_time=start_time,end_time=end_time,type="LLMQuery",llm="GPT4O",prefilter=prefilter)
+
                 update_conversation(client, conversation_id, query_text, response.content,False)
                 return jsonify({"response": response.content,"prompt":prompt_text})
         except ClientError as e:
@@ -885,6 +894,7 @@ def ask_deepSeek():
                                             contentType="application/json")
                 end_time=getCurTime()
                 writeElapsed(client=client,start_time=start_time,end_time=end_time,type="LLMQuery",llm="DeepSeekR1",prefilter=prefilter)
+
                 invoke_response["body"] = json.loads(invoke_response["body"].read().decode("utf-8"))
 
                 update_conversation(client, conversation_id, query_text, invoke_response["body"]['generation'],False)
@@ -959,6 +969,19 @@ def ask_claudeSonnet():
         
         finally:
             client.close()
+
+@app.route("/forbidden")
+def forbidden():
+    abort(403, description="You are not authorized!")
+
+@app.errorhandler(403)
+def handle_403(error):
+    return jsonify({"error": error.description}), 403  # Forbidden
+
+@app.errorhandler(Exception)
+def handle_exception(e):
+    return jsonify({"error": str(e)}), 500  # Internal Server Error
+
 
 if __name__ == '__main__':
     app.run(debug=True)
