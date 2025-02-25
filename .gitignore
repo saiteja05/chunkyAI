@@ -25,4 +25,4 @@ dummytester.ipynb
 
 
 #database config file
-image_search/config/config_database.py
+./image_search/config/config_database.py
