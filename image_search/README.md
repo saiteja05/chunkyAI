@@ -55,6 +55,7 @@ Another example:
 
 ## Configure database connection
 
+create a copy of `config/config_database_copy.py` and name it as `config/config_database.py`
 Please make the necessary changes to the `config/config_database.py` file by updating the database connection string, as well as the details of the database and collection.
 
 ## Create the Vector Search Index
