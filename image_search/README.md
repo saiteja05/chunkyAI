@@ -1,6 +1,6 @@
 # MongoDB Atlas Vector Search (Images) on Fashion Products
 
-##Author : Sai Teja Boddapati
+## Author : Sai Teja Boddapati
 
 # Atlas Vector Search on Fashion Products
 
