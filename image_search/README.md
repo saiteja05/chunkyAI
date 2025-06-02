@@ -1,5 +1,7 @@
 # MongoDB Atlas Vector Search (Images) on Fashion Products
 
+##Author : Sai Teja Boddapati
+
 # Atlas Vector Search on Fashion Products
 
 How can a search be conducted for the visual attributes of products that were not included in the product's metadata?
