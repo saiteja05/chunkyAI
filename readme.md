@@ -2,7 +2,7 @@
 # ChunkyAI - Gen-AI Playground
 
 ## Author : Sai Teja Boddapati 
-**ChunkyAI** is an application designed to test RAG (Retrieval-Augmented Generation) models. It is highly intuitive and facilitates testing multiple models, chunking strategies, and LLMs (Large Language Models) to help determine which combination yields the most accurate results for your use case. Use it to fine-tune your bot and improve its performance.
+**ChunkyAI** is an application designed to test Agentic RAG (Retrieval-Augmented Generation) models. It is highly intuitive and facilitates testing multiple models, chunking strategies, and LLMs (Large Language Models) to help determine which combination yields the most accurate results for your use case. Use it to fine-tune your bot and improve its performance.
 
 ## Python Version
 
